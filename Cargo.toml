@@ -75,6 +75,11 @@ path = "src/dongle.rs"
 name = "settings_reset"
 path = "src/settings_reset.rs"
 
+[build-dependencies]
+xz2 = "0.1.7"
+json = "0.12"
+const-gen = "1.6"
+
 [profile.dev]
 codegen-units = 1
 debug = true

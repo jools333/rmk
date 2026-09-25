@@ -24,8 +24,11 @@ use panic_probe as _;
 use pointing_processor_controller::PointingProcessorController;
 use rmk::ble::BleTransport;
 use rmk::config::{
-    AutoMouseLayerConfig, BehaviorConfig, BleBatteryConfig, DeviceConfig, PositionalConfig, RmkConfig, StorageConfig,
+    BehaviorConfig, BleBatteryConfig, DeviceConfig, PositionalConfig, RmkConfig, StorageConfig, VialConfig,
 };
+
+// Include generated Vial keyboard definition and keyboard ID
+core::include!(concat!(env!("OUT_DIR"), "/config_generated.rs"));
 use rmk::debounce::default_debouncer::DefaultDebouncer;
 use rmk::host::HostService;
 use rmk::input_device::adc::{AnalogEventType, NrfAdc};
@@ -173,10 +176,13 @@ async fn main(spawner: Spawner) {
         clear_storage: false,
         ..Default::default()
     };
+    let mut vial_config = VialConfig::new(VIAL_KEYBOARD_ID, VIAL_KEYBOARD_DEF, &[(0, 0), (0, 11)]);
+    vial_config.insecure = true; // Allow instant access without physical unlock combo
     let rmk_config = RmkConfig {
         device_config,
         ble_battery_config,
         storage_config,
+        vial_config,
         ..Default::default()
     };
 
@@ -187,11 +193,6 @@ async fn main(spawner: Spawner) {
     behavior_config.morse.prior_idle_time = embassy_time::Duration::from_millis(125);
     behavior_config.morse.default_profile.set_hold_timeout_ms(120);
     behavior_config.morse.default_profile.set_gap_timeout_ms(180);
-
-    // Auto-mouse layer: switches to Layer 1 (Mouse) on trackball motion
-    let _ = behavior_config
-        .auto_mouse_layer
-        .push(AutoMouseLayerConfig::new(None, 1, embassy_time::Duration::from_millis(1000), 1));
 
     let key_config = PositionalConfig::default();
     let (keymap, mut storage) = initialize_keymap_and_storage(
