@@ -7,7 +7,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-rmk = { path = "../../rmk-upstream/rmk", default-features = false, features = [
+rmk = { path = "rmk-upstream/rmk", default-features = false, features = [
     "defmt",
     "storage",
     "vial",
