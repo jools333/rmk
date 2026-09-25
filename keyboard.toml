@@ -31,11 +31,6 @@ prior_idle_time = "125ms"
 hold_timeout = "120ms"
 gap_timeout = "180ms"
 
-[[behavior.auto_mouse_layer]]
-target_layer = 1
-timeout = "1000ms"
-threshold = 1
-
 [behavior.combo]
 timeout = "50ms"
 prior_idle_time = "125ms"

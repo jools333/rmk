@@ -32,7 +32,6 @@ use rmk::input_device::adc::{AnalogEventType, NrfAdc};
 use rmk::input_device::battery::BatteryProcessor;
 use rmk::input_device::pmw3610::{BitBangSpiBus, Pmw3610, Pmw3610Config};
 use rmk::input_device::pointing::{PointingDevice, PointingProcessor, PointingProcessorConfig};
-use rmk::AutoMouseLayerRunner;
 use rmk::keyboard::Keyboard;
 use rmk::matrix::Matrix;
 use rmk::processor::builtin::wpm::WpmProcessor;
@@ -236,7 +235,6 @@ async fn main(spawner: Spawner) {
     };
     let mut pointing_processor = PointingProcessor::new(&keymap, pointing_processor_config);
     let mut pointing_controller = PointingProcessorController::new();
-    let mut auto_mouse_runner = AutoMouseLayerRunner::new(&keymap);
 
     // Battery processor for voltage monitoring (nice!nano v2 divider)
     let mut adc_device = NrfAdc::new(
@@ -275,7 +273,6 @@ async fn main(spawner: Spawner) {
         pmw3610_device,
         pointing_processor,
         pointing_controller,
-        auto_mouse_runner,
         adc_device,
         batt_proc,
         storage,
