@@ -1,0 +1,6 @@
+MEMORY
+{
+  /* Adafruit nRF52 bootloader occupies 0x0000..0x1000 (MBR) and 0xF4000..0x100000 */
+  FLASH : ORIGIN = 0x00001000, LENGTH = 1020K
+  RAM   : ORIGIN = 0x20000008, LENGTH = 255K
+}

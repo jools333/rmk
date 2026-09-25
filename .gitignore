@@ -1,0 +1,11 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# UF2 python helper tools
+uf2conv.py
+uf2families.json
+
+# OS files
+.DS_Store
+Thumbs.db

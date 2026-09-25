@@ -1,0 +1,90 @@
+[package]
+name = "charybdis-rmk"
+version = "0.1.0"
+authors = ["Charybdis RMK Porter"]
+description = "Production firmware for Charybdis Mini wireless split keyboard with dual-dongle support"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rmk = { path = "../../rmk-upstream/rmk", default-features = false, features = [
+    "defmt",
+    "storage",
+    "vial",
+    "watchdog",
+    "nrf52840_ble",
+    "split",
+    "dongle",
+    "async_matrix",
+    "adafruit_bl",
+] }
+nrf-sdc = { version = "0.4.0", features = [
+    "defmt",
+    "peripheral",
+    "central",
+    "nrf52840",
+] }
+nrf-mpsl = { version = "0.4.0", features = [
+    "defmt",
+    "critical-section-impl",
+    "nrf52840",
+] }
+bt-hci = { version = "0.10", features = ["defmt"] }
+
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.5"
+embassy-time = { version = "0.5", features = [
+    "tick-hz-32_768",
+    "defmt",
+    "defmt-timestamp-uptime",
+] }
+embassy-nrf = { version = "0.11", features = [
+    "defmt",
+    "nrf52840",
+    "time-driver-rtc1",
+    "gpiote",
+    "unstable-pac",
+    "nfc-pins-as-gpio",
+    "time",
+] }
+embassy-futures = { version = "0.1" }
+embedded-storage = { version = "0.3" }
+embassy-executor = { version = "0.10", features = [
+    "defmt",
+    "platform-cortex-m",
+    "executor-thread",
+] }
+defmt = "1"
+defmt-rtt = "1"
+panic-probe = { version = "1", features = ["print-defmt"] }
+static_cell = "2"
+
+[[bin]]
+name = "central"
+path = "src/central.rs"
+
+[[bin]]
+name = "peripheral"
+path = "src/peripheral.rs"
+
+[[bin]]
+name = "dongle"
+path = "src/dongle.rs"
+
+[[bin]]
+name = "settings_reset"
+path = "src/settings_reset.rs"
+
+[profile.dev]
+codegen-units = 1
+debug = true
+opt-level = 1
+overflow-checks = true
+lto = false
+
+[profile.release]
+codegen-units = 1
+debug = true
+opt-level = "z"
+overflow-checks = false
+lto = "fat"

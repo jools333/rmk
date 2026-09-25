@@ -1,0 +1,314 @@
+diff --git a/rmk-config/src/lib.rs b/rmk-config/src/lib.rs
+index 01e427f..b28d523 100644
+--- a/rmk-config/src/lib.rs
++++ b/rmk-config/src/lib.rs
+@@ -349,6 +349,10 @@ pub(crate) struct RmkConstantsConfig {
+     /// keyboard is bonded, opened once at power-on otherwise (dongle firmware only)
+     #[serde_inline_default(30)]
+     pub dongle_pairing_window_secs: u32,
++    /// Number of dongle bond slots to maintain on the keyboard (dongle firmware only).
++    /// Defaults to 1; set to 2 or more to bond multiple physical dongles (e.g. Home and Work).
++    #[serde_inline_default(1)]
++    pub dongle_profiles: usize,
+ }
+ 
+ fn check_combo_max_num<'de, D>(deserializer: D) -> Result<usize, D::Error>
+@@ -442,6 +446,7 @@ impl Default for RmkConstantsConfig {
+             auto_mouse_layer_max_num: None,
+             rynk_buffer_size: 488,
+             dongle_pairing_window_secs: 30,
++            dongle_profiles: 1,
+         }
+     }
+ }
+diff --git a/rmk-config/src/resolved/build_constants.rs b/rmk-config/src/resolved/build_constants.rs
+index 226f63e..4ec6209 100644
+--- a/rmk-config/src/resolved/build_constants.rs
++++ b/rmk-config/src/resolved/build_constants.rs
+@@ -56,6 +56,7 @@ pub struct BuildConstants {
+     /// Rynk RX/TX buffer size (bytes).
+     pub rynk_buffer_size: usize,
+     pub dongle_pairing_window_secs: u32,
++    pub dongle_profiles_num: usize,
+     pub events: Vec<EventChannel>,
+     pub passkey: Option<Passkey>,
+ }
+@@ -305,6 +306,7 @@ impl crate::KeyboardTomlConfig {
+             auto_mouse_layer_max_num,
+             rynk_buffer_size: rmk.rynk_buffer_size,
+             dongle_pairing_window_secs: rmk.dongle_pairing_window_secs,
++            dongle_profiles_num: rmk.dongle_profiles,
+             events,
+             passkey,
+         })
+diff --git a/rmk-types/build.rs b/rmk-types/build.rs
+index 3377150..79b47db 100644
+--- a/rmk-types/build.rs
++++ b/rmk-types/build.rs
+@@ -189,6 +189,13 @@ fn generate_constants(bc: &BuildConstants, config: &KeyboardTomlConfig) -> Strin
+             "pub const DONGLE_PAIRING_WINDOW_SECS: u32 = {};",
+             bc.dongle_pairing_window_secs
+         ));
++        lines.push(format!(
++            "pub const NUM_DONGLE_PROFILES: usize = {};",
++            bc.dongle_profiles_num
++        ));
++    } else {
++        lines.push("pub const DONGLE_PAIRING_WINDOW_SECS: u32 = 0;".to_string());
++        lines.push("pub const NUM_DONGLE_PROFILES: usize = 0;".to_string());
+     }
+ 
+     // Event channels
+diff --git a/rmk/src/ble/mod.rs b/rmk/src/ble/mod.rs
+index 37d15cf..9523d83 100644
+--- a/rmk/src/ble/mod.rs
++++ b/rmk/src/ble/mod.rs
+@@ -283,10 +283,12 @@ async fn run_ble_keyboard<
+ 
+     let connection_loop = async {
+         loop {
+-            // On the dongle slot, advertise directed to the bonded dongle or
++            // On a dongle slot, advertise directed to the bonded dongle or
+             // as a seeking broadcast; on the normal profiles, plain HID.
+             #[cfg(feature = "dongle")]
+-            let adv = if crate::state::current_profile() == crate::ble::profile::DONGLE_PROFILE {
++            let is_dongle = crate::ble::profile::is_dongle_profile(crate::state::current_profile());
++            #[cfg(feature = "dongle")]
++            let adv = if is_dongle {
+                 match profile_manager.active_bond_info() {
+                     Some(info) => Adv::Directed(info.info.identity.addr),
+                     None => Adv::DongleSeeking,
+@@ -297,13 +299,26 @@ async fn run_ble_keyboard<
+             #[cfg(not(feature = "dongle"))]
+             let adv = Adv::Host { name: product_name };
+ 
++            // Determine advertising duration: alternate quickly (4s) between bonded dongles if multiple exist
++            #[cfg(feature = "dongle")]
++            let adv_duration = if is_dongle
++                && matches!(adv, Adv::Directed(_))
++                && profile_manager.next_bonded_dongle_slot(crate::state::current_profile()).is_some()
++            {
++                Duration::from_secs(4)
++            } else {
++                Duration::from_secs(300)
++            };
++            #[cfg(not(feature = "dongle"))]
++            let adv_duration = Duration::from_secs(300);
++
+             // Wait for 10ms to ensure the USB is checked
+             Timer::after_millis(10).await;
+             info!("[adv] advertising");
+             set_ble_state(BleState::Advertising);
+ 
+             match select(
+-                advertise(&mut peripheral, &server.server, adv, Duration::from_secs(300)),
++                advertise(&mut peripheral, &server.server, adv, adv_duration),
+                 profile_manager.update_profile(),
+             )
+             .await
+@@ -326,7 +341,7 @@ async fn run_ble_keyboard<
+                     }
+                     // When connecting to BLE host, check the connected peer is not a dongle.
+                     #[cfg(feature = "dongle")]
+-                    if crate::state::current_profile() != crate::ble::profile::DONGLE_PROFILE
++                    if !crate::ble::profile::is_dongle_profile(crate::state::current_profile())
+                         && profile_manager.is_bonded_dongle(&conn.raw().peer_identity())
+                     {
+                         warn!("[ble] the bonded dongle connected on a host BLE profile, disconnecting");
+@@ -352,6 +367,14 @@ async fn run_ble_keyboard<
+                     }
+                 }
+                 Either::First(Err(BleHostError::BleHost(Error::Timeout))) => {
++                    #[cfg(feature = "dongle")]
++                    if is_dongle {
++                        if let Some(next_slot) = profile_manager.next_bonded_dongle_slot(crate::state::current_profile()) {
++                            info!("[dongle] rotation: switching directed adv to dongle slot {}", next_slot);
++                            profile_manager.switch_profile(next_slot).await;
++                            continue;
++                        }
++                    }
+                     warn!("Advertising timeout, sleep and wait for any key");
+                     set_ble_state(BleState::Inactive);
+ 
+@@ -833,7 +856,7 @@ async fn serve_keyboard_connection<
+     // `use_1m_phy` exists for legacy host adapters that cannot do 2M.
+     // Always use 2M for the dongle link.
+     #[cfg(feature = "dongle")]
+-    let dongle_link = crate::state::current_profile() == crate::ble::profile::DONGLE_PROFILE;
++    let dongle_link = crate::ble::profile::is_dongle_profile(crate::state::current_profile());
+     #[cfg(not(feature = "dongle"))]
+     let dongle_link = false;
+     let host_phy = if cfg!(feature = "use_1m_phy") && !dongle_link {
+diff --git a/rmk/src/ble/profile.rs b/rmk/src/ble/profile.rs
+index 368cb15..19b42a1 100644
+--- a/rmk/src/ble/profile.rs
++++ b/rmk/src/ble/profile.rs
+@@ -17,15 +17,36 @@ use crate::storage::{StorageItem, StorageKey, StorageValue, read, store};
+ pub(crate) static UPDATED_PROFILE: Signal<crate::RawMutex, ProfileInfo> = Signal::new();
+ pub(crate) static UPDATED_CCCD_TABLE: Signal<crate::RawMutex, heapless::Vec<u8, CCCD_TABLE_SIZE>> = Signal::new();
+ 
+-/// The dedicated dongle bond slot: the slot number after the normal profiles,
++/// The base dongle bond slot: the slot number after the normal profiles,
+ /// so pairing a dongle never touches a host bond. Selected only via the
+-/// `SwitchToDongle` key, never by profile cycling.
++/// `SwitchToDongle` key or dedicated dongle keys, never by profile cycling.
+ #[cfg(feature = "dongle")]
+ pub(crate) const DONGLE_PROFILE: u8 = NUM_BLE_PROFILE as u8;
+ 
++/// Number of dedicated dongle bond slots to maintain.
++#[cfg(feature = "dongle")]
++pub(crate) const NUM_DONGLE_PROFILES: usize = crate::NUM_DONGLE_PROFILES;
++#[cfg(not(feature = "dongle"))]
++pub(crate) const NUM_DONGLE_PROFILES: usize = 0;
++
+ /// Bond slots kept by the profile manager: the host profiles, plus the
+-/// dedicated dongle slot on `dongle` builds.
+-pub(crate) const BOND_SLOTS: usize = NUM_BLE_PROFILE + cfg!(feature = "dongle") as usize;
++/// dedicated dongle slot(s) on `dongle` builds.
++pub(crate) const BOND_SLOTS: usize = NUM_BLE_PROFILE + NUM_DONGLE_PROFILES;
++
++/// Returns true if the given slot number is a dongle profile slot.
++pub(crate) fn is_dongle_profile(slot: u8) -> bool {
++    #[cfg(feature = "dongle")]
++    {
++        let start = NUM_BLE_PROFILE as u8;
++        let end = start + NUM_DONGLE_PROFILES as u8;
++        slot >= start && slot < end
++    }
++    #[cfg(not(feature = "dongle"))]
++    {
++        let _ = slot;
++        false
++    }
++}
+ 
+ /// BLE profile info
+ #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+@@ -168,19 +189,47 @@ where
+             .cloned()
+     }
+ 
+-    /// Check if the `identity` is the bonded dongle's identity.
++    /// Check if the `identity` is one of the bonded dongles' identity.
+     ///
+     /// This function is used when searching for BLE host,
+-    /// the connected dongle(in the DONGLE_PROFILE) should be excluded.
++    /// connected dongles (in any dongle profile slot) should be excluded.
+     #[cfg(feature = "dongle")]
+     pub(crate) fn is_bonded_dongle(&self, identity: &Identity) -> bool {
+         self.bonded_devices.iter().any(|bond_info| {
+             !bond_info.removed
+-                && bond_info.slot_num == DONGLE_PROFILE
++                && is_dongle_profile(bond_info.slot_num)
+                 && bond_info.info.identity.match_identity(identity)
+         })
+     }
+ 
++    /// Return the list of slot numbers that currently have a valid (non-removed) dongle bond.
++    #[cfg(feature = "dongle")]
++    pub(crate) fn bonded_dongle_slots(&self) -> heapless::Vec<u8, 8> {
++        let mut slots = heapless::Vec::new();
++        for info in self.bonded_devices.iter() {
++            if !info.removed && is_dongle_profile(info.slot_num) {
++                let _ = slots.push(info.slot_num);
++            }
++        }
++        slots
++    }
++
++    /// Return the next bonded dongle slot to alternate with during auto-reconnect, if any.
++    #[cfg(feature = "dongle")]
++    pub(crate) fn next_bonded_dongle_slot(&self, current_slot: u8) -> Option<u8> {
++        let bonded = self.bonded_dongle_slots();
++        if bonded.len() <= 1 {
++            return None;
++        }
++        // Find next bonded dongle slot after current_slot
++        if let Some(pos) = bonded.iter().position(|&s| s == current_slot) {
++            let next_pos = (pos + 1) % bonded.len();
++            Some(bonded[next_pos])
++        } else {
++            bonded.first().copied()
++        }
++    }
++
+     /// Update bonding information in the stack according to the current active profile
+     pub(crate) fn update_stack_bonds(&self) {
+         // Drain one at a time rather than collecting: the stack holds bonds this
+@@ -337,20 +386,22 @@ where
+                             }
+                         }
+                         BleProfileAction::Previous => {
+-                            let mut profile = current_profile();
+-                            profile = if profile == 0 {
++                            let current = current_profile();
++                            let profile = if current == 0 || current >= NUM_BLE_PROFILE as u8 {
+                                 NUM_BLE_PROFILE as u8 - 1
+                             } else {
+-                                profile - 1
++                                current - 1
+                             };
+ 
+                             self.switch_profile(profile).await;
+                         }
+                         BleProfileAction::Next => {
+-                            // Cycling stays within the host profiles. The dongle slot sits past
+-                            // the last one, so wrap there too instead of landing on profile 1.
+-                            let next = current_profile() + 1;
+-                            let profile = if next >= NUM_BLE_PROFILE as u8 { 0 } else { next };
++                            let current = current_profile();
++                            let profile = if current >= (NUM_BLE_PROFILE as u8 - 1) {
++                                0
++                            } else {
++                                current + 1
++                            };
+ 
+                             self.switch_profile(profile).await;
+                         }
+diff --git a/rmk/src/keyboard.rs b/rmk/src/keyboard.rs
+index 047736c..6ae0075 100644
+--- a/rmk/src/keyboard.rs
++++ b/rmk/src/keyboard.rs
+@@ -1737,12 +1737,16 @@ impl<'a> Keyboard<'a> {
+                     #[cfg(not(feature = "_no_usb"))]
+                     crate::state::toggle_preferred().await;
+                 }
+-                // Switch to the dongle slot.
++                // Switch to a dongle slot.
+                 #[cfg(feature = "dongle")]
+-                if id == NUM_BLE_PROFILE as u8 + 5 {
+-                    info!("Switch to dongle profile");
++                if id >= NUM_BLE_PROFILE as u8 + 5
++                    && id < NUM_BLE_PROFILE as u8 + 5 + crate::NUM_DONGLE_PROFILES as u8
++                {
++                    let dongle_idx = id - (NUM_BLE_PROFILE as u8 + 5);
++                    let target_slot = crate::ble::profile::DONGLE_PROFILE + dongle_idx;
++                    info!("Switch to dongle profile {}", dongle_idx);
+                     BLE_PROFILE_CHANNEL
+-                        .send(BleProfileAction::Switch(crate::ble::profile::DONGLE_PROFILE))
++                        .send(BleProfileAction::Switch(target_slot))
+                         .await;
+                 }
+             }
+@@ -1774,13 +1778,17 @@ impl<'a> Keyboard<'a> {
+             publish_event(ClearPeerEvent);
+         }
+         #[cfg(feature = "dongle")]
+-        if id == NUM_BLE_PROFILE as u8 + 5 {
++        if id >= NUM_BLE_PROFILE as u8 + 5
++            && id < NUM_BLE_PROFILE as u8 + 5 + crate::NUM_DONGLE_PROFILES as u8
++        {
+             use crate::ble::profile::DONGLE_PROFILE;
+-            info!("Dongle key held: clearing dongle bond, seeking a dongle");
++            let dongle_idx = id - (NUM_BLE_PROFILE as u8 + 5);
++            let target_slot = DONGLE_PROFILE + dongle_idx;
++            info!("Dongle key {} held: clearing dongle bond, seeking a dongle", dongle_idx);
+             BLE_PROFILE_CHANNEL
+-                .send(BleProfileAction::ClearSlot(DONGLE_PROFILE))
++                .send(BleProfileAction::ClearSlot(target_slot))
+                 .await;
+-            BLE_PROFILE_CHANNEL.send(BleProfileAction::Switch(DONGLE_PROFILE)).await;
++            BLE_PROFILE_CHANNEL.send(BleProfileAction::Switch(target_slot)).await;
+         }
+     }
+ 
