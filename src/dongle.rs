@@ -75,7 +75,9 @@ async fn main(spawner: Spawner) {
 
     let mut nrf_config = embassy_nrf::config::Config::default();
     nrf_config.dcdc.reg0_voltage = Some(embassy_nrf::config::Reg0Voltage::_3V3);
-    nrf_config.dcdc.reg0 = true;
+    // Use LDO mode for REG0 on USB power for 100% compatibility with any nRF52840 board
+    // (nRFMicro, SuperMini, nice!nano, PCA10059) regardless of whether external DCDC coils are populated
+    nrf_config.dcdc.reg0 = false;
     nrf_config.dcdc.reg1 = true;
     let p = embassy_nrf::init(nrf_config);
 
