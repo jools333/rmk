@@ -176,6 +176,17 @@ From repository root (`charybdis-rmk`):
 The script automatically builds release binaries for all targets, converts them via `arm-none-eabi-objcopy` and `uf2conv.py`, and outputs ready-to-flash files into `dist/`.
 
 ### Flashing Devices
+Use the automated flashing script [`flash.sh`](file:///home/jools/Distr/rmk/flash.sh):
+```bash
+./flash.sh           # Sequence: Left -> Right -> Dongle (no typing needed)
+./flash.sh left      # Left half only
+./flash.sh right     # Right half only
+./flash.sh dongle    # USB Dongle only
+./flash.sh reset     # Flash wiper utility
+```
+The script monitors for `NICENANO` mount points, writes the matching UF2 binary, triggers desktop and audio notifications, waits for disconnect, and transitions to the next device.
+
+Or manual method:
 1. Double-click the reset button on the nice!nano v2 (or bridge `RST` + `GND` twice).
 2. The controller mounts as a USB mass-storage drive named `NICENANO` (e.g. `/media/$USER/NICENANO/`).
 3. Copy the appropriate file:

@@ -664,7 +664,7 @@ impl<'a> PointingProcessor<'a> {
 
     // pointing device events are used to change the mode (cursor/scroll/sniper) of the processor based on the device id. This allows users to trigger different modes if desired.
     pub async fn on_pointing_processor_event(&mut self, event: PointingProcessorEvent) {
-        if self.config.device_id == ALL_POINTING_DEVICES || self.config.device_id == event.device_id {
+        if self.config.device_id == ALL_POINTING_DEVICES || event.device_id == ALL_POINTING_DEVICES || self.config.device_id == event.device_id {
             debug!(
                 "PointingProcessor {}: setting mode to {:?}",
                 self.config.device_id, event.mode

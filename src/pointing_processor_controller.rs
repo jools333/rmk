@@ -15,7 +15,7 @@ impl PointingProcessorController {
             // Layer 6: MouseSnip - Snipe mode (1:6 scaling divisor, matching ZMK &zip_xy_scaler 1 6)
             6 => {
                 publish_event(PointingProcessorEvent {
-                    device_id: 255,
+                    device_id: 0,
                     mode: PointingMode::Sniper(rmk::input_device::pointing::SniperConfig {
                         multiplier: 1,
                         divisor: 6,
@@ -24,24 +24,24 @@ impl PointingProcessorController {
                     }),
                 });
             }
-            // Layer 7: MouseScroll - Scroll mode (1:3 scaling divisor, invert Y, matching ZMK)
+            // Layer 7: MouseScroll - Scroll mode (1:3 scaling divisor, inverted scroll direction)
             7 => {
                 publish_event(PointingProcessorEvent {
-                    device_id: 255,
+                    device_id: 0,
                     mode: PointingMode::Scroll(rmk::input_device::pointing::ScrollConfig {
                         multiplier_x: 1,
                         divisor_x: 3,
                         multiplier_y: 1,
                         divisor_y: 3,
                         invert_x: false,
-                        invert_y: true,
+                        invert_y: false,
                     }),
                 });
             }
             // Default: normal cursor mode
             _ => {
                 publish_event(PointingProcessorEvent {
-                    device_id: 255,
+                    device_id: 0,
                     mode: PointingMode::Cursor(rmk::input_device::pointing::CursorConfig::default()),
                 });
             }

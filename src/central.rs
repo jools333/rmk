@@ -3,6 +3,7 @@
 
 #[macro_use]
 mod macros;
+mod behavior;
 mod keymap;
 mod pointing_processor_controller;
 
@@ -24,7 +25,7 @@ use panic_probe as _;
 use pointing_processor_controller::PointingProcessorController;
 use rmk::ble::BleTransport;
 use rmk::config::{
-    BehaviorConfig, BleBatteryConfig, DeviceConfig, PositionalConfig, RmkConfig, StorageConfig, VialConfig,
+    BleBatteryConfig, DeviceConfig, PositionalConfig, RmkConfig, StorageConfig, VialConfig,
 };
 
 // Include generated Vial keyboard definition and keyboard ID
@@ -174,6 +175,7 @@ async fn main(spawner: Spawner) {
         start_addr: 0xA0000,
         num_sectors: 6,
         clear_storage: false,
+        clear_layout: true,
         ..Default::default()
     };
     let mut vial_config = VialConfig::new(VIAL_KEYBOARD_ID, VIAL_KEYBOARD_DEF, &[(0, 0), (0, 11)]);
@@ -186,13 +188,9 @@ async fn main(spawner: Spawner) {
         ..Default::default()
     };
 
-    // Keymap and behavior initialization
+    // Keymap and behavior initialization (combos, macros, tap-hold timings)
     let mut keymap_data = KeymapData::new(keymap::get_default_keymap());
-    let mut behavior_config = BehaviorConfig::default();
-    behavior_config.morse.enable_flow_tap = true;
-    behavior_config.morse.prior_idle_time = embassy_time::Duration::from_millis(125);
-    behavior_config.morse.default_profile.set_hold_timeout_ms(120);
-    behavior_config.morse.default_profile.set_gap_timeout_ms(180);
+    let mut behavior_config = behavior::get_default_behavior_config();
 
     let key_config = PositionalConfig::default();
     let (keymap, mut storage) = initialize_keymap_and_storage(

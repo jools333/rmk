@@ -173,9 +173,27 @@ where
                 debug!("Loaded active profile: {}", profile);
                 profile
             } else {
-                debug!("Loaded default active profile",);
-                0
+                debug!("Loaded default active profile");
+                #[cfg(feature = "dongle")]
+                {
+                    DONGLE_PROFILE
+                }
+                #[cfg(not(feature = "dongle"))]
+                {
+                    0
+                }
             };
+
+        #[cfg(feature = "dongle")]
+        let profile = if !is_dongle_profile(profile)
+            && !self.bonded_devices.iter().any(|b| !b.removed && b.slot_num == profile)
+        {
+            info!("Profile {} has no bond; switching to dongle slot {}", profile, DONGLE_PROFILE);
+            DONGLE_PROFILE
+        } else {
+            profile
+        };
+
         set_ble_profile(profile);
     }
 
