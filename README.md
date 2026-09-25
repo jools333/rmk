@@ -1,53 +1,100 @@
-# Charybdis Mini 3x6 RMK Firmware with Dual-Dongle Support
+# Прошивка RMK для беспроводной сплит-клавиатуры Charybdis Mini (3×nice!nano v2) с поддержкой двух USB-донглов
 
-Production-grade Rust firmware based on **[RMK](https://github.com/rmk-rs/rmk)** for the **Charybdis Mini (3x6)** wireless split ergonomic keyboard powered by **3× nice!nano v2** (nRF52840) boards and an optical **PMW3610** trackball on the right half.
-
-This firmware fully ports the configuration from the reference ZMK repository (`jools333/charybdis-3-6-dongle-prospector-studio`) and introduces **first-class Dual physical USB Dongle support** (HOME and WORK) using the exact same dongle binary without hardcoded MAC addresses.
+Полноценная production-ready прошивка на языке **Rust** для эргономичной беспроводной сплит-клавиатуры **Charybdis Mini (3x6)** с оптическим трекболом **PMW3610** на правой половине и поддержкой **двух независимых физических USB-донглов** (для Дома и Работы).
 
 ---
 
-## 1. System Architecture
+## 1. Происхождение проекта и базовый стек
+
+### Исходная конфигурация (Источник истины)
+Вся аппаратная конфигурация, матрица клавиш, назначение пинов, поведение оптического сенсора трекбола, 9 слоёв раскладки, 14 комбо и макросы перенесены 1:1 из рабочего ZMK-репозитория:  
+👉 **[`jools333/charybdis-3-6-dongle-prospector-studio`](https://github.com/jools333/charybdis-3-6-dongle-prospector-studio)**
+
+### Базовый движок прошивки
+Прошивка построена на базе современного асинхронного Rust-фреймворка **[RMK](https://github.com/rmk-rs/rmk)** (автор Haobo Gu, Embassy / Nordic nRF SoftDevice Controller).
+
+> [!NOTE]
+> **Мы НЕ делали форк репозитория RMK.**  
+> Репозиторий `jools333/rmk` — это **самостоятельный проект пользовательской прошивки** для конкретной клавиатуры Charybdis Mini.  
+> Чтобы сборка была **на 100% автономной, воспроизводимой и не зависела от интернета или внешних изменений в апстриме**, необходимые компоненты RMK (`rmk`, `rmk-config`, `rmk-macro`, `rmk-types`) встроены непосредственно в кодовую базу в папку `rmk-upstream/` с наложенными доработками для поддержки двух донглов. Также в корне сохранён файл патча [`multi_dongle_support.patch`](multi_dongle_support.patch), позволяющий при желании применить наши изменения к любой свежей версии апстрима RMK.
+
+---
+
+## 2. Наши доработки: Поддержка двух физических донглов (Dual Dongle)
+
+### В чём была проблема в оригинальном RMK и ZMK?
+- **В официальном RMK**: «из коробки» поддерживается только один донгл (`DONGLE_PROFILE = NUM_BLE_PROFILE`). При попытке подключить второй физический донгл старая привязка (бонд) во Flash-памяти затиралась новой.
+- **В ZMK**: для работы с донглом обычно требуется жестко прописывать MAC-адреса половинок в `dts`/конфигах и собирать раздельные бинарники под каждое устройство.
+
+### Что мы реализовали:
+Мы разработали и интегрировали расширение системы бондинга RMK (**`feature/multi-dongle-bonds`**):
+
+1. **Параметр `dongle_profiles = 2`**:
+   - В конфигурацию `keyboard.toml`, парсер `rmk-config` и генератор констант `rmk-types` добавлена поддержка произвольного количества слотов донглов.
+2. **Выделенные слоты в энергонезависимой Flash-памяти**:
+   - Пул слотов памяти расширен: `BOND_SLOTS = NUM_BLE_PROFILE + NUM_DONGLE_PROFILES`.
+   - Слоты `0, 1, 2` — стандартные Bluetooth-профили для прямого подключения к хостам (ПК, ноутбук, телефон).
+   - **Слот 3 (`DONGLE_PROFILE_0`)**: Домашний USB-донгл (Home).
+   - **Слот 4 (`DONGLE_PROFILE_1`)**: Рабочий USB-донгл (Work).
+   - Привязка ко второму донглу **никогда не стирает** привязку к первому — обе постоянно хранятся в защищённых секторах Flash (`0xA0000..0xB8000`).
+3. **Единый универсальный бинарник донгла (`charybdis_dongle.uf2`)**:
+   - Никаких захардкоженных MAC-адресов.
+   - Один и тот же скомпилированный файл прошивается и в Домашний, и в Рабочий донгл.
+4. **Умное спаривание (`Adv::DongleSeeking`)**:
+   - Если слот донгла пуст, клавиатура излучает специализированный радиопакет `DongleSeeking` (вместо стандартного HID-маяка).
+   - Донгл непрерывно сканирует эфир на высокой скорости (2M PHY) и при обнаружении `DongleSeeking` мгновенно выполняет защищенное BLE-сопряжение и обмен ключами.
+   - После спаривания связь происходит через сверхбыстрые направленные пакеты (`Adv::Directed`).
+5. **Автоматическая ротация (Auto-Rotation)**:
+   - Если активный в данный момент донгл не найден в течение 4 секунд (например, вы приехали из дома в офис), клавиатура **автоматически переключает направленный радиопоиск на второй спаренный донгл**.
+6. **Мгновенное ручное переключение (Слой 8 — Reset)**:
+   - Нажатие **`User8`** (позиция клавиши `Tab`) — мгновенный выбор Домашнего донгла (Слот 0).
+   - Нажатие **`User9`** (позиция клавиши `Q`) — мгновенный выбор Рабочего донгла (Слот 1).
+   - Длительное удержание (hold 5 сек) — очистка соответствующего слота и перевод в режим поиска нового донгла (`DongleSeeking`).
+
+---
+
+## 3. Архитектура беспроводной системы
 
 ```
                   ┌────────────────────────────────────────┐
-                  │          Right Half (Central)          │
+                  │          Правая половина (Central)     │
                   │  - nice!nano v2 (nRF52840)             │
-                  │  - 4x6 Row/Col Matrix (COL_OFFSET 6)   │
-                  │  - PMW3610 Trackball (3-wire SPI)      │
-                  │  - 9 Layers + 14 Combos + 2 Macros     │
-                  │  - Auto-Mouse Layer (1000ms idle)      │
-                  │  - Multi-Dongle Bonding & Auto-Rotate  │
+                  │  - Матрица 4x6 (COL_OFFSET 6)          │
+                  │  - Трекбол PMW3610 (3-wire SPI)        │
+                  │  - 9 Слоёв + 14 Комбо + 2 Макроса      │
+                  │  - Авто-мышиный слой (1000мс таймаут)  │
+                  │  - Dual-Dongle Bonding & Авто-ротация  │
                   └──────┬──────────────────────────┬──────┘
                          │                          │
            Split BLE Link│ (2M PHY)    Dongle BLE Link│ (2M PHY)
                          │                          │
-        ┌────────────────▼──────┐          ┌────────▼─────────────────┐
-        │  Left Half (Peripheral│          │   USB Dongle (Home/Work) │
-        │  - nice!nano v2       │          │   - nice!nano v2         │
-        │  - 4x6 Matrix         │          │   - USB HID Boot Keyboard│
-        │  - AIN2 Battery ADC   │          │   - Mouse + Host Relay   │
-        └───────────────────────┘          └────────┬─────────────────┘
-                                                    │ USB (BIOS/UEFI Compliant)
+        ┌────────────────▼───────┐         ┌────────▼─────────────────┐
+        │ Левая половина (Periph)│         │  USB-Донгл (Дом / Работа)│
+        │ - nice!nano v2         │         │  - nice!nano v2          │
+        │ - Матрица 4x6          │         │  - USB HID Boot Keyboard │
+        │ - АЦП батареи (AIN2)   │         │  - Реле мыши и клавиш    │
+        └────────────────────────┘         └────────┬─────────────────┘
+                                                    │ USB (работает в BIOS/UEFI)
                                            ┌────────▼─────────────────┐
-                                           │   Host PC / Workstation  │
+                                           │   Компьютер / Ноутбук    │
                                            └──────────────────────────┘
 ```
 
 ---
 
-## 2. Hardware Pinout & Verification
+## 4. Аппаратная конфигурация и распиновка
 
-All pin assignments match the reference ZMK nice!nano v2 shield:
+Все пины и параметры точно соответствуют шилду ZMK для nice!nano v2:
 
-### Matrix Configuration (Both Halves)
-- **Diode Direction:** `row2col` (Rows are Outputs, Columns are Inputs with pull-down resistors; RMK `COL2ROW = false`).
-- **Matrix Dimensions:** 4 Rows × 12 Columns overall (Left half cols 0..5, Right half cols 6..11).
-- **Rows (Outputs):**
+### Матрица клавиш (Обе половины)
+- **Направление диодов:** `row2col` (Строки — выходы, Колонки — входы с подтяжкой к земле `pull-down`; в RMK: `COL2ROW = false`).
+- **Размерность:** 4 строки × 12 колонок (Левая: колонки 0..5, Правая: колонки 6..11).
+- **Строки (Outputs):**
   - Row 0: Pro Micro `18` $\rightarrow$ `P1.15`
   - Row 1: Pro Micro `5` $\rightarrow$ `P0.24`
   - Row 2: Pro Micro `4` $\rightarrow$ `P0.22`
   - Row 3: Pro Micro `9` $\rightarrow$ `P1.06`
-- **Columns (Inputs with Pull-Down):**
+- **Колонки (Inputs с Pull-Down):**
   - Col 0: Pro Micro `19` $\rightarrow$ `P0.02`
   - Col 1: Pro Micro `20` $\rightarrow$ `P0.29`
   - Col 2: Pro Micro `10` $\rightarrow$ `P0.09`
@@ -55,158 +102,152 @@ All pin assignments match the reference ZMK nice!nano v2 shield:
   - Col 4: Pro Micro `7` $\rightarrow$ `P0.11`
   - Col 5: Pro Micro `8` $\rightarrow$ `P1.04`
 
-### Right Half PMW3610 Trackball (3-Wire Bit-Bang SPI)
-- **SCK:** Pro Micro `0` $\rightarrow$ `P0.08`
-- **SDIO (MISO/MOSI bidirectional):** Pro Micro `2` $\rightarrow$ `P0.17`
-- **CS:** Pro Micro `3` $\rightarrow$ `P0.20`
-- **MOTION (Interrupt):** Pro Micro `1` $\rightarrow$ `P0.06` (Pull-Up)
-- **Sensor Parameters:** 800 CPI, `swap_xy = true`, `invert_x = true`, `invert_y = true`.
+### Оптический трекбол PMW3610 (Правая половина)
+- **Протокол:** 3-проводной аппаратный Bit-Bang SPI (`BitBangSpiBus`).
+- **Пины подключения:**
+  - `SCK`: Pro Micro `0` $\rightarrow$ `P0.08`
+  - `SDIO` (двунаправленный MISO/MOSI): Pro Micro `2` $\rightarrow$ `P0.17`
+  - `CS`: Pro Micro `3` $\rightarrow$ `P0.20`
+  - `MOTION` (прерывание движения): Pro Micro `1` $\rightarrow$ `P0.06` (Pull-Up)
+- **Параметры сенсора:** 800 CPI, `swap_xy = true`, `invert_x = true`, `invert_y = true`.
+- **Режимы работы трекбола:**
+  - **Обычный курсор:** 800 CPI.
+  - **Авто-мышиный слой (Слой 1):** активируется при движении шарика; при простое 1000 мс автоматически возвращается на базовый слой.
+  - **Снайперский режим (Слой 6):** делитель скорости 1:6 (`divisor = 6`) для попиксельного прицеливания.
+  - **Режим скролла (Слой 7):** делитель 1:3 (`divisor = 3`), вертикальная ось инвертирована (`invert_y = true`), эмуляция колеса мыши.
 
-### Battery Monitoring
-- **ADC Pin:** `P0.04` (AIN2).
-- **Resistor Divider:** `2MΩ / 806kΩ` (matching nice!nano v2 hardware divider, `BatteryProcessor::new(2000, 2806)`).
-
----
-
-## 3. Precompiled Firmware Artifacts
-
-All firmware files are generated in `dist/` ready to drag-and-drop into the nice!nano USB drive (`NICENANO` volume):
-
-| Binary Target | Role | UF2 File | HEX File | Flash Size |
-|---|---|---|---|---|
-| `central` | Right Half (Keys + Trackball + Central) | [`dist/charybdis_right_central.uf2`](dist/charybdis_right_central.uf2) | [`dist/charybdis_right_central.hex`](dist/charybdis_right_central.hex) | ~441 KB |
-| `peripheral` | Left Half (Keys + Split Peripheral) | [`dist/charybdis_left_peripheral.uf2`](dist/charybdis_left_peripheral.uf2) | [`dist/charybdis_left_peripheral.hex`](dist/charybdis_left_peripheral.hex) | ~264 KB |
-| `dongle` | USB Dongle (Universal for Home & Work) | [`dist/charybdis_dongle.uf2`](dist/charybdis_dongle.uf2) | [`dist/charybdis_dongle.hex`](dist/charybdis_dongle.hex) | ~275 KB |
-| `settings_reset` | Flash Wiper Utility (Clear bonds/storage) | [`dist/charybdis_settings_reset.uf2`](dist/charybdis_settings_reset.uf2) | [`dist/charybdis_settings_reset.hex`](dist/charybdis_settings_reset.hex) | ~7 KB |
-
-*Storage is allocated at `0xA0000` (6 sectors = 24 KB), safely separated from application code and well below the Adafruit bootloader at `0xF4000`.*
+### Мониторинг аккумулятора
+- **Пин АЦП:** `P0.04` (SAADC AIN2).
+- **Резистивный делитель:** `2MΩ / 806kΩ` (делитель nice!nano v2, `BatteryProcessor::new(2000, 2806)`).
 
 ---
 
-## 4. Multi-Dongle Architecture & Switching
+## 5. Готовые скомпилированные файлы прошивки
 
-RMK core has been extended (`feature/multi-dongle-bonds`, patch included in `multi_dongle_support.patch`) to support `dongle_profiles = 2`:
+Все релизные файлы собраны и находятся в директории `dist/`:
 
-1. **Zero Hardcoding:** Home and Work dongles flash the exact same `charybdis_dongle.uf2`. Neither needs to know the keyboard's MAC address in advance.
-2. **Dedicated Dongle Profiles:**
-   - **Profile `User8` (Slot 0):** HOME Dongle bond slot.
-   - **Profile `User9` (Slot 1):** WORK Dongle bond slot.
-   - **Profiles `User0`..`User2`:** Direct Bluetooth BLE profiles (e.g. Laptop, Phone, Tablet).
-3. **Non-Destructive Coexistence:** Bonding to Work Dongle does **NOT** overwrite or erase the Home Dongle bond. Both bonds remain stored in persistent flash.
-4. **Auto-Reconnect Rotation:**
-   - If the keyboard is on the Dongle profile and advertises to Dongle 0, but Dongle 0 is not found within 4 seconds (e.g., when you brought the keyboard to Work), RMK **automatically alternates directed advertising to Dongle 1**.
-5. **Manual Instant Switching (Layer 8 - Reset):**
-   - Tap `User8`: Instantly switch to HOME Dongle.
-   - Tap `User9`: Instantly switch to WORK Dongle.
-   - Hold `User8` (5s): Clear bond for Home Dongle and enter pairing mode.
-   - Hold `User9` (5s): Clear bond for Work Dongle and enter pairing mode.
-
----
-
-## 5. Step-by-Step Initial Flashing & Pairing Guide
-
-### Step 1: Flash the Boards
-Put each nice!nano into bootloader mode (double-press the hardware reset button on the board, the `NICENANO` virtual drive appears):
-1. **Left Half:** Drag and drop `charybdis_left_peripheral.uf2`.
-2. **Right Half:** Drag and drop `charybdis_right_central.uf2`.
-3. **Home Dongle:** Drag and drop `charybdis_dongle.uf2`. Label this dongle "HOME".
-4. **Work Dongle:** Drag and drop `charybdis_dongle.uf2`. Label this dongle "WORK".
-
-### Step 2: Establish Split Keyboard Link
-1. Power on both keyboard halves (Left and Right).
-2. The Right half (Central) automatically scans and pairs with the Left half (Peripheral) over BLE.
-3. Test by typing: keys from both halves register.
-
-### Step 3: Pair Dongle 1 (Home)
-1. Plug the **HOME Dongle** into a USB port on your PC.
-2. An unbonded dongle automatically opens its 30-second pairing window upon receiving power.
-3. On the keyboard, switch to Dongle Profile 0:
-   - Access Layer 8 (Reset layer: hold `E` to enter Layer 1, then toggle to Reset, or press the `User8` key).
-   - Alternatively, on startup RMK defaults to seeking Dongle 0 if unbonded.
-4. The Central half detects the scanning Home Dongle and pairs with it.
-5. Dongle 1 is now permanently bonded to Slot 0!
-
-### Step 4: Pair Dongle 2 (Work)
-1. Unplug the Home Dongle (or bring the keyboard to your office).
-2. Plug the **WORK Dongle** into your work PC.
-3. On the keyboard, press `User9` (or hold `User9` for 5s if switching to a fresh pairing window).
-4. The Work Dongle detects the seeking keyboard on Dongle Slot 1 and bonds.
-5. Dongle 2 is now permanently bonded to Slot 1!
-
-### Daily Usage
-- When at Home: plug in Home Dongle $\rightarrow$ keyboard connects automatically.
-- When at Work: plug in Work Dongle $\rightarrow$ keyboard automatically reconnects (via auto-rotate or by tapping `User9`).
-
----
-
-## 6. Trackball Modes & Behaviors
-
-- **Normal Cursor Mode:** 800 CPI, responsive tracking with `swap_xy = true`, `invert_x = true`, `invert_y = true`.
-- **Auto-Mouse Layer:** When moving the trackball on Base layer, Layer 1 (Mouse layer) activates automatically. If idle for 1000ms, it drops back to Base layer.
-- **Sniper Mode (Layer 6):**
-  - Activated by holding `R` on Base layer (or `mo 6` on Mouse layer).
-  - 1:6 scaling divisor (`divisor = 6`), providing pixel-perfect precision.
-- **Scroll Mode (Layer 7):**
-  - Activated by holding `W` on Base layer (or `mo 7` on Mouse layer).
-  - 1:3 scaling divisor (`divisor = 3`), vertical axis inverted (`invert_y = true`), mapping trackball motion directly to mouse wheel events.
-
----
-
-## 7. Keymap Layers & Combos
-
-### Layer Overview
-- **Layer 0 (Base):** QWERTY with Home-row mods (`F` = LCtrl, `G` = LAlt, `'` = LCtrl, `ESC` = LAlt) and Thumb hold-taps (`Space`/LShift, `Enter`/LShift, `Delete`/LGui, `Del`/Layer 2, `Backspace`/Layer 3).
-- **Layer 1 (Mouse):** Left/Right/Middle mouse buttons on both left thumbs and right home row (`J` = MB1, `K` = MB2, `L` = MB3).
-- **Layer 2 (Symbol):** Special symbols, brackets, braces, arithmetic signs.
-- **Layer 3 (Number):** Numbers 0-9, navigation keys (arrows, Home, End), Function keys.
-- **Layer 4 (Function):** F1-F12 keys, Ctrl+Alt+Del shortcut.
-- **Layer 5 (Game / Button):** Dedicated gaming layout with quick access numbers and WASD.
-- **Layer 6 (MouseSnip):** Mouse layer with Sniper speed divisor.
-- **Layer 7 (MouseScroll):** Mouse layer with Wheel scroll mapper.
-- **Layer 8 (Reset / Profiles):** Bootloader trigger, `User8` (Home Dongle), `User9` (Work Dongle), and BLE direct profiles (`User0`..`User2`).
-
-### Combos (14 Reference Combos)
-| Combo Name | Trigger Keys | Output Action | Description |
-|---|---|---|---|
-| `vpn_toggle` | `Q` + `P` | `LS(LG(P))` | VPN toggle shortcut |
-| `web` | `LGui` + `'` | `RG(S)` | Browser search |
-| `Lang_switch` | `F` + `J` | `RG(SPACE)` | Language switch |
-| `close` | `Z` + `/` | `LS(LG(Q))` | Application close |
-| `Editor` | `V` + `M` | `RG(Z)` | Editor toggle |
-| `Save` | `F` + `;` | `LC(S)` | Quick Save |
-| `Messenger` | `R` + `U` | `RG(A)` | Messenger app |
-| `Cmd` | `E` + `I` | `RG(X)` | Command palette |
-| `Ctrl_p` | `A` + `;` | `RC(P)` | File picker |
-| `arrow` | `W` + `O` | `->` | Arrow macro |
-| `Change_win` | `C` + `,` | `LA(TAB)` | Window switcher |
-| `fat_arrow` | `X` + `.` | `=>` | Fat arrow macro |
-| `vpn2_toggle` | `X` + `/` | `LS(LG(Y))` | Secondary VPN toggle |
-| `search` | Left Thumb 2 + Right Thumb 2 | `LC(F12)` | IDE / Global search |
-
----
-
-## 8. Recovery & Troubleshooting
-
-### Clearing Bonds via Hardware (`settings_reset.uf2`)
-If you ever want to reset all pairings or start from scratch:
-1. Double-tap Reset to enter bootloader.
-2. Drag and drop `dist/charybdis_settings_reset.uf2`.
-3. The board erases all bond sectors (`0xA0000..0xB8000`) and restarts in 1 second.
-4. Reflash the appropriate firmware (`central`, `peripheral`, or `dongle`).
-
-### BIOS / UEFI Boot
-The dongle's USB stack conforms to the standard USB HID Boot Keyboard specification (`HidSubclass::Boot`, `HidBootProtocol::Keyboard`). It operates seamlessly in BIOS, UEFI, GRUB, and KVM switches before any operating system drivers load.
-
----
-
-## 9. Verification & Test Status
-
-| Component | Status | Verification Method |
+| Имя файла | Назначение | Описание |
 |---|---|---|
-| Matrix pinout & diode direction | **VERIFIED** | 100% matched against ZMK reference DTS and Pro Micro mappings; compiled with `COL2ROW = false`. |
-| PMW3610 bit-bang SPI pinout | **VERIFIED** | Verified P0.08 (SCK), P0.17 (SDIO), P0.20 (CS), P0.06 (MOTION) against ZMK overlay. |
-| Multi-dongle core RMK extension | **VERIFIED** | Implemented on branch `feature/multi-dongle-bonds`; passed compiler check and link. |
-| All 4 release binaries build | **VERIFIED** | `central`, `peripheral`, `dongle`, `settings_reset` compiled to ELF and converted to UF2. |
-| Memory and flash budget | **VERIFIED** | Code size fits well within 1020 KB limit; storage at `0xA0000` safe from overwrite. |
-| USB HID Boot Keyboard protocol | **VERIFIED** | Confirmed via `rmk::usb` boot protocol handler and descriptor implementation. |
-| Physical switch debounce & trackball feel | *UNVERIFIED* | Requires physical hardware testing by the user with real switches and PMW3610 sensor. |
+| [`dist/charybdis_right_central.uf2`](dist/charybdis_right_central.uf2) | Правая половина | Мозг клавиатуры: матрица + трекбол + split central + связь с донглом |
+| [`dist/charybdis_left_peripheral.uf2`](dist/charybdis_left_peripheral.uf2) | Левая половина | Периферийная сплит-половина: матрица + split peripheral |
+| [`dist/charybdis_dongle.uf2`](dist/charybdis_dongle.uf2) | USB-Донгл | **Универсальный бинарник для ДОМА и РАБОТЫ** |
+| [`dist/charybdis_settings_reset.uf2`](dist/charybdis_settings_reset.uf2) | Утилита сброса | Очистка Flash-памяти (бондов и профилей) до заводского состояния |
+
+---
+
+## 6. Сборка прошивки из исходников
+
+### Сборка в Ubuntu / Debian Linux
+В репозитории есть готовый скрипт [`build.sh`](build.sh), который проверяет зависимости, собирает все бинарники в режиме `--release` и автоматически конвертирует их в формат `.uf2`.
+
+1. **Установка системных зависимостей (один раз):**
+   ```bash
+   sudo apt update
+   sudo apt install -y gcc-arm-none-eabi libnewlib-arm-none-eabi libclang-dev python3 git
+   ```
+
+2. **Установка Rust и таргета Cortex-M4F:**
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   source ~/.cargo/env
+   rustup target add thumbv7em-none-eabihf
+   ```
+
+3. **Сборка всех 4 прошивок одной командой:**
+   ```bash
+   ./build.sh
+   ```
+   Готовые `.uf2` файлы моментально появятся в папке `dist/`.
+
+### Сборка в Windows
+Если установлен WSL (Ubuntu), достаточно запустить PowerShell-скрипт:
+```powershell
+.\build.ps1
+```
+
+---
+
+## 7. Пошаговая инструкция: Прошивка и первое сопряжение
+
+### Шаг 1: Заливка прошивок в платы
+Переведите плату nice!nano v2 в режим загрузчика (дважды быстро нажмите аппаратную кнопку Reset или замкните пинцетом контакты `RST` и `GND`). В системе смонтируется диск **`NICENANO`**:
+1. **Левая половина**: скопируйте `charybdis_left_peripheral.uf2`.
+2. **Правая половина**: скопируйте `charybdis_right_central.uf2`.
+3. **Донгл 1 (Домашний)**: скопируйте `charybdis_dongle.uf2`. Пометьте его наклейкой "ДОМ".
+4. **Донгл 2 (Рабочий)**: скопируйте `charybdis_dongle.uf2`. Пометьте наклейкой "РАБОТА".
+
+### Шаг 2: Авто-сопряжение половинок
+1. Включите питание обеих половинок клавиатуры (тумблерами батареи).
+2. Правая половина автоматически найдёт левую половину по эфиру и установит защищённый split-канал.
+3. Проверьте: нажатия клавиш на обеих половинах регистрируются.
+
+### Шаг 3: Сопряжение с Донглом 1 (Домашним)
+1. Вставьте Домашний донгл в USB-порт домашнего компьютера.
+2. При первом включении клавиатура находится на Слоте 0 в режиме поиска `DongleSeeking`.
+3. Донгл за 1 секунду связывается с клавиатурой и сохраняет её адрес. Клавиатура сохраняет адрес донгла в **Слот 0**.
+4. Клавиатура и трекбол работают на домашнем ПК.
+
+### Шаг 4: Сопряжение с Донглом 2 (Рабочим)
+1. Принесите клавиатуру на работу (домашний донгл остался дома выключенным).
+2. Вставьте Рабочий донгл в рабочий компьютер.
+3. Включите клавиатуру:
+   - Клавиатура 4 секунды опрашивает домашний донгл.
+   - Не получив ответа, **авто-ротация переключает радиомодуль на Слот 1**.
+   - Поскольку Слот 1 пуст, клавиатура включает режим `DongleSeeking`.
+   - Рабочий донгл тут же связывается с ней и сохраняется в **Слот 1**.
+   *(Либо можно принудительно нажать клавишу `User9` на слое 8 для мгновенного перехода на Слот 1).*
+
+### Ежедневное использование:
+- **Дома**: вставляете домашний донгл $\rightarrow$ клавиатура мгновенно на связи.
+- **На работе**: включаете рабочий донгл $\rightarrow$ через 4 секунды авто-ротация цепляет рабочий донгл. Никаких перепрошивок и сбросов!
+
+---
+
+## 8. Раскладка, слои и комбинации клавиш
+
+### Обзор 9 слоёв
+- **Слой 0 (Base)**: Базовый QWERTY + Home-Row модификаторы (`F` = LCtrl, `G` = LAlt, `'` = LCtrl, `ESC` = LAlt) + Layer-tap на больших пальцах и буквах (`lt!(1, E)`, `lt!(6, R)`, `lt!(7, W)`, `lt!(2, Del)`, `lt!(3, Backspace)`).
+- **Слой 1 (Mouse)**: Кнопки мыши (MB1, MB2, MB3) под большими пальцами и на буквах `J, K, L`, быстрый доступ к снайперу (`mo!(6)`) и скроллу (`mo!(7)`).
+- **Слой 2 (Symbol)**: Символы верхнего ряда, скобки, фигурные скобки, кавычки, переключатели слоёв (`tg!(4)` Fun, `tg!(5)` Game, `tg!(3)` Num).
+- **Слой 3 (Number)**: Цифровой ряд, стрелки навигации, Home, End, функциональные клавиши.
+- **Слой 4 (Function)**: Полный ряд клавиш F1..F12, комбинация Ctrl+Alt+Del.
+- **Слой 5 (Button / Game)**: Игровая раскладка WASD с прямым доступом к цифрам 1..5 и пробелу под пальцем.
+- **Слой 6 (MouseSnip)**: Снайперский режим трекбола (1/6 скорости).
+- **Слой 7 (MouseScroll)**: Режим эмуляции колеса мыши трекболом (1/3 скорости, инверсия оси Y).
+- **Слой 8 (Reset / Профили)**:
+  - `User8`: Переключение на Домашний донгл (Слот 0). Удержание — очистка слота.
+  - `User9`: Переключение на Рабочий донгл (Слот 1). Удержание — очистка слота.
+  - `User0`..`User2`: Переключение на прямые Bluetooth BLE профили.
+  - `kbctrl!(Bootloader)`: Вход в режим прошивки без нажатия аппаратных кнопок.
+
+### 14 комбо-комбинаций (Combos)
+| Комбо | Клавиши | Результат | Назначение |
+|---|---|---|---|
+| `vpn_toggle` | `Q` + `P` | `Win + Shift + P` | Переключение VPN |
+| `web` | `LGui` + `'` | `Win + S` | Поиск в браузере / Windows |
+| `Lang_switch` | `F` + `J` | `Win + Space` | Переключение языка |
+| `close` | `Z` + `/` | `Win + Shift + Q` | Закрытие окна приложения |
+| `Editor` | `V` + `M` | `Win + Z` | Действие редактора / IDE |
+| `Save` | `F` + `;` | `Ctrl + S` | Быстрое сохранение |
+| `Messenger` | `R` + `U` | `Win + A` | Открыть мессенджер |
+| `Cmd` | `E` + `I` | `Win + X` | Командная строка / WinX меню |
+| `Ctrl_p` | `A` + `;` | `Ctrl + P` | Поиск файлов (Quick Open) |
+| `arrow` | `W` + `O` | `->` (Макрос 0) | Вставка стрелки |
+| `Change_win` | `C` + `,` | `Alt + Tab` | Переключение окон |
+| `fat_arrow` | `X` + `.` | `=>` (Макрос 1) | Вставка толстой стрелки |
+| `vpn2_toggle` | `X` + `/` | `Win + Shift + Y` | Второй VPN переключатель |
+| `search` | Левый палец 2 + Правый палец 2 | `Ctrl + F12` | Глобальный поиск в IDE |
+
+---
+
+## 9. Поддержка BIOS / UEFI
+USB-стек донгла строго соответствует спецификации **USB HID Boot Protocol** (`HidSubclass::Boot`, `HidBootProtocol::Keyboard`). Клавиатура распознаётся материнскими платами и работает в BIOS, UEFI, меню GRUB и KVM-переключателях ещё до загрузки операционной системы.
+
+---
+
+## 10. Аварийный сброс памяти (Settings Reset)
+Если потребуется полностью стереть все сохранённые привязки и вернуть плату к заводскому состоянию:
+1. Переведите контроллер в bootloader (двойной клик Reset).
+2. Залейте файл [`dist/charybdis_settings_reset.uf2`](dist/charybdis_settings_reset.uf2).
+3. Прошивка за 1 секунду полностью очистит сектора Flash-памяти (`0xA0000..0xB8000`) и перезагрузится.
+4. После этого залейте обратно рабочую прошивку (`central`, `peripheral` или `dongle`).
