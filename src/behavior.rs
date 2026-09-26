@@ -19,13 +19,13 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     behavior_config.morse.default_profile = MorseProfile::new(
         Some(false),
         Some(MorseMode::PermissiveHold),
-        Some(120u16), // hold timeout: 120ms (быстрое срабатывание Shift / Mod-tap / Layer-tap)
+        Some(150u16), // hold timeout: 150ms (по запросу пользователя увеличено с 120мс до 150мс)
         Some(180u16), // gap timeout: 180ms
     )
     .with_quick_tap_timeout_ms(Some(180))
     .with_enable_flow_tap(Some(true));
 
-    // 2. Все 13 комбо из раскладки Charybdis Mini / keyboard.toml
+    // 2. Все 14 комбо из раскладки Charybdis Mini / keyboard.toml
     let combos: [Option<Combo>; COMBO_MAX_NUM] = [
         // 1. Q + P -> Win+Shift+P (VPN Toggle)
         Some(Combo::new(ComboConfig::new(
@@ -97,7 +97,12 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             wm!(Y, ModifierCombination::LSHIFT | ModifierCombination::LGUI),
             None,
         ))),
-        None,
+        // 14. Delete + Backspace -> Ctrl+F12 (Search, клавиши 37 и 40 на больших пальцах)
+        Some(Combo::new(ComboConfig::new(
+            [k!(Delete), k!(Backspace)],
+            wm!(F12, ModifierCombination::LCTRL),
+            None,
+        ))),
         None,
         None,
         None,
@@ -108,7 +113,7 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
 
     behavior_config.combo = CombosConfig {
         combos,
-        timeout: embassy_time::Duration::from_millis(50),
+        timeout: embassy_time::Duration::from_millis(60),
         prior_idle_time: None,
     };
 

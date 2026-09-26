@@ -64,7 +64,7 @@ impl PartialEq for KeyAction {
             (KeyAction::Transparent, KeyAction::Transparent) => true,
             (KeyAction::Single(a), KeyAction::Single(b)) => a == b,
             (KeyAction::Tap(a), KeyAction::Tap(b)) => a == b,
-            (KeyAction::TapHold(a, b, _), KeyAction::TapHold(c, d, _)) => a == c && b == d,
+            (KeyAction::TapHold(a, _, _), KeyAction::TapHold(c, _, _)) => a == c,
             (KeyAction::Morse(a), KeyAction::Morse(b)) => a == b,
             (KeyAction::Single(a), KeyAction::TapHold(tap, _, _))
             | (KeyAction::TapHold(tap, _, _), KeyAction::Single(a)) => a == tap,
