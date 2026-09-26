@@ -28,7 +28,7 @@ num_sectors = 6
 [behavior.morse]
 enable_flow_tap = true
 prior_idle_time = "125ms"
-hold_timeout = "150ms"
+hold_timeout = "180ms"
 gap_timeout = "180ms"
 
 [behavior.combo]
