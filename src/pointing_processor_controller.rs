@@ -24,15 +24,15 @@ impl PointingProcessorController {
                     }),
                 });
             }
-            // Layer 7: MouseScroll - Scroll mode (1:3 scaling divisor, inverted scroll direction)
+            // Layer 7: MouseScroll - Scroll mode (1:24 scaling divisor for smooth scrolling)
             7 => {
                 publish_event(PointingProcessorEvent {
                     device_id: 0,
                     mode: PointingMode::Scroll(rmk::input_device::pointing::ScrollConfig {
                         multiplier_x: 1,
-                        divisor_x: 3,
+                        divisor_x: 24,
                         multiplier_y: 1,
-                        divisor_y: 3,
+                        divisor_y: 24,
                         invert_x: false,
                         invert_y: false,
                     }),

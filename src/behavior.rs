@@ -19,7 +19,7 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     behavior_config.morse.default_profile = MorseProfile::new(
         Some(false),
         Some(MorseMode::PermissiveHold),
-        Some(180u16), // hold timeout: 180ms
+        Some(160u16), // hold timeout: 160ms
         Some(180u16), // gap timeout: 180ms
     )
     .with_quick_tap_timeout_ms(Some(180))
