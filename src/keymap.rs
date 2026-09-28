@@ -43,7 +43,7 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
         // =========================================================================
         [
             [wm!(Insert, ModifierCombination::RSHIFT), wm!(Kc1, ModifierCombination::LSHIFT), wm!(Kc2, ModifierCombination::LSHIFT), wm!(Kc3, ModifierCombination::LSHIFT), wm!(Kc4, ModifierCombination::LSHIFT), wm!(Kc5, ModifierCombination::LSHIFT), k!(Backspace), wm!(Kc0, ModifierCombination::LSHIFT), wm!(Kc9, ModifierCombination::LSHIFT), wm!(Kc8, ModifierCombination::LSHIFT), wm!(Kc7, ModifierCombination::LSHIFT), wm!(Kc6, ModifierCombination::LSHIFT)],
-            [k!(LCtrl), tg!(4), a!(No), k!(RGui), k!(Backspace), tg!(3), k!(Grave), k!(Backslash), k!(RightBracket), k!(LeftBracket), k!(Equal), k!(Minus)],
+            [k!(LCtrl), tg!(4), mo!(8), k!(RGui), k!(Backspace), tg!(3), k!(Grave), k!(Backslash), k!(RightBracket), k!(LeftBracket), k!(Equal), k!(Minus)],
             [k!(LAlt), tg!(5), wm!(X, ModifierCombination::LCTRL), a!(No), wm!(P, ModifierCombination::LCTRL | ModifierCombination::LALT), a!(No), wm!(Grave, ModifierCombination::LSHIFT), wm!(Backslash, ModifierCombination::LSHIFT), wm!(RightBracket, ModifierCombination::LSHIFT), wm!(LeftBracket, ModifierCombination::LSHIFT), wm!(Equal, ModifierCombination::LSHIFT), wm!(Minus, ModifierCombination::LSHIFT)],
             [a!(No), k!(Space), a!(No), k!(RGui), a!(Transparent), a!(No), a!(No), mt!(Enter, ModifierCombination::LSHIFT), a!(No), a!(Transparent), a!(No), a!(No)],
         ],
@@ -65,7 +65,7 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
             [a!(Transparent), wm!(Delete, ModifierCombination::LCTRL | ModifierCombination::LALT), k!(F7), k!(F8), k!(F9), k!(F10), a!(Transparent), a!(No), a!(No), a!(No), a!(No), a!(No)],
             [a!(Transparent), a!(No), k!(F4), k!(F5), k!(F6), k!(F11), a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), a!(No)],
             [a!(Transparent), a!(No), k!(F1), k!(F2), k!(F3), k!(F12), a!(Transparent), a!(No), a!(No), a!(No), a!(No), a!(No)],
-            [a!(No), a!(No), a!(No), a!(No), a!(No), a!(No), a!(No), a!(No), a!(No), a!(No), a!(No), a!(No)],
+            [a!(No), mo!(8), a!(No), mo!(8), mo!(8), a!(No), a!(No), mo!(8), a!(No), mo!(8), a!(No), a!(No)],
         ],
 
         // =========================================================================

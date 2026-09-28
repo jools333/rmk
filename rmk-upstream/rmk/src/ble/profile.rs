@@ -232,6 +232,24 @@ where
         slots
     }
 
+    /// Return the next dongle slot to alternate with during auto-reconnect or searching.
+    /// Cycles across all configured dongle slots (DONGLE_PROFILE .. DONGLE_PROFILE + NUM_DONGLE_PROFILES)
+    /// so that unbonded dongles (such as Dongle 2) get a chance to pair automatically via Adv::DongleSeeking.
+    #[cfg(feature = "dongle")]
+    pub(crate) fn next_dongle_slot(&self, current_slot: u8) -> Option<u8> {
+        if NUM_DONGLE_PROFILES <= 1 {
+            return None;
+        }
+        let start = DONGLE_PROFILE;
+        let end = start + NUM_DONGLE_PROFILES as u8;
+        if current_slot >= start && current_slot < end {
+            let next = start + ((current_slot - start + 1) % NUM_DONGLE_PROFILES as u8);
+            Some(next)
+        } else {
+            Some(start)
+        }
+    }
+
     /// Return the next bonded dongle slot to alternate with during auto-reconnect, if any.
     #[cfg(feature = "dongle")]
     pub(crate) fn next_bonded_dongle_slot(&self, current_slot: u8) -> Option<u8> {

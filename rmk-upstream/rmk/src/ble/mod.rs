@@ -282,6 +282,9 @@ async fn run_ble_keyboard<
     let profile_manager = &mut profile_manager;
 
     let connection_loop = async {
+        #[cfg(feature = "dongle")]
+        let mut dongle_rotation_count: u8 = 0;
+
         loop {
             // On a dongle slot, advertise directed to the bonded dongle or
             // as a seeking broadcast; on the normal profiles, plain HID.
@@ -299,13 +302,16 @@ async fn run_ble_keyboard<
             #[cfg(not(feature = "dongle"))]
             let adv = Adv::Host { name: product_name };
 
-            // Determine advertising duration: alternate quickly (4s) between bonded dongles if multiple exist
+            // Determine advertising duration: alternate quickly between dongles if multiple exist
             #[cfg(feature = "dongle")]
             let adv_duration = if is_dongle
-                && matches!(adv, Adv::Directed(_))
-                && profile_manager.next_bonded_dongle_slot(crate::state::current_profile()).is_some()
+                && profile_manager.next_dongle_slot(crate::state::current_profile()).is_some()
             {
-                Duration::from_secs(4)
+                if matches!(adv, Adv::DongleSeeking) {
+                    Duration::from_secs(6)
+                } else {
+                    Duration::from_secs(4)
+                }
             } else {
                 Duration::from_secs(300)
             };
@@ -325,6 +331,10 @@ async fn run_ble_keyboard<
             {
                 Either::First(Ok(conn)) => {
                     info!("[adv] connection established");
+                    #[cfg(feature = "dongle")]
+                    {
+                        dongle_rotation_count = 0;
+                    }
                     if let Err(e) = conn.raw().set_bondable(true) {
                         error!("Set bondable error: {:?}", e);
                     }
@@ -369,10 +379,15 @@ async fn run_ble_keyboard<
                 Either::First(Err(BleHostError::BleHost(Error::Timeout))) => {
                     #[cfg(feature = "dongle")]
                     if is_dongle {
-                        if let Some(next_slot) = profile_manager.next_bonded_dongle_slot(crate::state::current_profile()) {
-                            info!("[dongle] rotation: switching directed adv to dongle slot {}", next_slot);
-                            profile_manager.switch_profile(next_slot).await;
-                            continue;
+                        if let Some(next_slot) = profile_manager.next_dongle_slot(crate::state::current_profile()) {
+                            const MAX_DONGLE_ROTATIONS: u8 = 10;
+                            if dongle_rotation_count < MAX_DONGLE_ROTATIONS {
+                                dongle_rotation_count += 1;
+                                info!("[dongle] rotation ({}): switching adv to dongle slot {}", dongle_rotation_count, next_slot);
+                                profile_manager.switch_profile(next_slot).await;
+                                continue;
+                            }
+                            dongle_rotation_count = 0;
                         }
                     }
                     warn!("Advertising timeout, sleep and wait for any key");
@@ -397,7 +412,12 @@ async fn run_ble_keyboard<
                     error!("Advertise error: {:?}", e);
                     Timer::after_millis(200).await;
                 }
-                Either::Second(()) => {}
+                Either::Second(()) => {
+                    #[cfg(feature = "dongle")]
+                    {
+                        dongle_rotation_count = 0;
+                    }
+                }
             };
 
             // Skip the Inactive transition if we never moved off Advertising
