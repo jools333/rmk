@@ -175,7 +175,7 @@ async fn main(spawner: Spawner) {
         start_addr: 0xA0000,
         num_sectors: 6,
         clear_storage: false,
-        clear_layout: true,
+        clear_layout: false,
         ..Default::default()
     };
     let mut vial_config = VialConfig::new(VIAL_KEYBOARD_ID, VIAL_KEYBOARD_DEF, &[(0, 0), (0, 11)]);
