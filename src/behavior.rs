@@ -8,22 +8,31 @@ use rmk::{k, macros, wm};
 pub fn get_default_behavior_config() -> BehaviorConfig {
     let mut behavior_config = BehaviorConfig::default();
 
-    // 1. Morse / Hold-Tap тайминги:
-    // Полное соответствие с исходным ZMK (&mt, &lt, gqt):
-    // tapping-term-ms = 120ms (быстрое срабатывание холда)
-    // quick-tap-ms = 180ms
-    // require-prior-idle-ms = 125ms (через enable_flow_tap + prior_idle_time)
-    // PermissiveHold: при зажатии мода и нажатии+отпускании другой клавиши холд срабатывает мгновенно
+    // 1. Morse / Hold-Tap тайминги и поведение (из layout.vil / Vial settings):
+    // Setting 2: Combo timeout = 60ms
+    // Setting 6: OneShot timeout = 1000ms
+    // Setting 7: Hold timeout (Morse timeout / tapping-term) = 200ms
+    // Setting 18: Tap interval = 20ms
+    // Setting 19: Tap capslock interval = 20ms
+    // Setting 22: PermissiveHold = true
+    // Setting 23: HoldOnOtherKeyPress = false
+    // Setting 25: Quick-tap / gap timeout = 180ms
+    // Setting 26: UnilateralTap = true
+    // Setting 27: Prior idle time = 125ms (через enable_flow_tap + prior_idle_time)
     behavior_config.morse.enable_flow_tap = true;
     behavior_config.morse.prior_idle_time = embassy_time::Duration::from_millis(125);
     behavior_config.morse.default_profile = MorseProfile::new(
-        Some(false),
-        Some(MorseMode::PermissiveHold),
-        Some(160u16), // hold timeout: 160ms
-        Some(180u16), // gap timeout: 180ms
+        Some(true), // unilateral_tap: true (setting 26)
+        Some(MorseMode::PermissiveHold), // permissive_hold: true (setting 22)
+        Some(200u16), // hold timeout: 200ms (setting 7)
+        Some(180u16), // gap timeout: 180ms (setting 25)
     )
     .with_quick_tap_timeout_ms(Some(180))
     .with_enable_flow_tap(Some(true));
+
+    behavior_config.one_shot.timeout = embassy_time::Duration::from_millis(1000);
+    behavior_config.tap.tap_interval = 20;
+    behavior_config.tap.tap_capslock_interval = 20;
 
     // 2. Все 14 комбо из раскладки Charybdis Mini / keyboard.toml
     let combos: [Option<Combo>; COMBO_MAX_NUM] = [

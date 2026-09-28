@@ -81,6 +81,7 @@ fn build_sdc<'d, const N: usize>(
         .support_phy_update_central()
         .support_phy_update_peripheral()
         .support_le_2m_phy()
+        .support_connection_subrating_central()
         // 1 split peripheral (Left half)
         .central_count(1)?
         // 1 link toward dongle or host
@@ -215,6 +216,7 @@ async fn main(spawner: Spawner) {
     let pmw3610_config = Pmw3610Config {
         res_cpi: 800,
         smart_mode: true,
+        force_awake: true,
         ..Default::default()
     };
     let pmw3610_sck = Output::new(p.P0_08, Level::High, OutputDrive::Standard);

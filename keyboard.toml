@@ -1,5 +1,6 @@
 [rmk]
 dongle_profiles = 2
+split_central_sleep_timeout_seconds = 180
 combo_max_num = 20
 combo_max_length = 4
 
@@ -27,9 +28,15 @@ num_sectors = 6
 
 [behavior.morse]
 enable_flow_tap = true
+unilateral_tap = true
+permissive_hold = true
 prior_idle_time = "125ms"
-hold_timeout = "160ms"
+hold_timeout = "200ms"
 gap_timeout = "180ms"
+quick_tap_timeout = "180ms"
+
+[behavior.one_shot]
+timeout = "1000ms"
 
 [behavior.combo]
 timeout = "60ms"

@@ -23,9 +23,9 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
         // =========================================================================
         [
             [k!(Tab),   k!(Q), lt!(7, W), lt!(1, E), lt!(6, R),                       k!(T),   k!(LeftBracket),                 k!(P),         k!(O),     k!(I),     k!(U), k!(Y)],
-            [k!(LGui),  k!(A), k!(S),     k!(D),     mt!(F, ModifierCombination::LCTRL), mt!(G, ModifierCombination::LALT), mt!(Quote, ModifierCombination::LCTRL), k!(Semicolon), k!(L),     k!(K),     k!(J), k!(H)],
+            [k!(LGui),  k!(A), k!(S),     k!(D),     mt!(F, ModifierCombination::LSHIFT), mt!(G, ModifierCombination::LCTRL), mt!(Quote, ModifierCombination::LCTRL), k!(Semicolon), k!(L),     k!(K),     mt!(J, ModifierCombination::RSHIFT), mt!(H, ModifierCombination::RCTRL)],
             [k!(RGui),  k!(Z), k!(X),     k!(C),     k!(V),                       k!(B),   mt!(Escape, ModifierCombination::LALT), k!(Slash), k!(Dot), k!(Comma), k!(M), k!(N)],
-            [a!(No), mt!(Space, ModifierCombination::LSHIFT), a!(No), mt!(Delete, ModifierCombination::LGUI), lt!(2, Delete), a!(No), a!(No), mt!(Enter, ModifierCombination::LSHIFT), a!(No), lt!(3, Backspace), a!(No), a!(No)],
+            [a!(No), mt!(Space, ModifierCombination::LGUI), a!(No), mt!(Delete, ModifierCombination::LGUI), lt!(2, Delete), a!(No), a!(No), mt!(Enter, ModifierCombination::RGUI), a!(No), lt!(3, Backspace), a!(No), a!(No)],
         ],
 
         // =========================================================================
@@ -53,7 +53,7 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
         // =========================================================================
         [
             [wm!(C, ModifierCombination::RCTRL), k!(Kc1), k!(Kc2), k!(Kc3), k!(Kc4), k!(Kc5), k!(Semicolon), k!(Kc0), k!(Kc9), k!(Kc8), k!(Kc7), k!(Kc6)],
-            [wm!(V, ModifierCombination::RCTRL), wm!(I, ModifierCombination::RCTRL | ModifierCombination::LSHIFT), k!(Home), k!(End), k!(Backspace), wm!(F12, ModifierCombination::LCTRL), mt!(F12, ModifierCombination::LCTRL), k!(Minus), k!(Right), k!(Up), k!(Down), k!(Left)],
+            [wm!(V, ModifierCombination::RCTRL), wm!(I, ModifierCombination::LSHIFT), k!(Home), k!(End), k!(Backspace), wm!(F12, ModifierCombination::LCTRL), mt!(F12, ModifierCombination::LCTRL), k!(Minus), k!(Right), k!(Up), k!(Down), k!(Left)],
             [wm!(X, ModifierCombination::RCTRL), k!(F1), k!(F2), k!(F3), k!(F4), k!(F5), k!(F11), k!(F10), k!(F9), k!(F8), k!(F7), k!(F6)],
             [a!(No), mt!(Tab, ModifierCombination::LCTRL), a!(No), wm!(F3, ModifierCombination::LCTRL), k!(LAlt), a!(No), a!(No), mt!(Enter, ModifierCombination::LSHIFT), a!(No), a!(Transparent), a!(No), a!(No)],
         ],

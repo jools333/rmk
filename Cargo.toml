@@ -17,6 +17,7 @@ rmk = { path = "rmk-upstream/rmk", default-features = false, features = [
     "dongle",
     "async_matrix",
     "adafruit_bl",
+    "subrating",
 ] }
 nrf-sdc = { version = "0.4.0", features = [
     "defmt",
