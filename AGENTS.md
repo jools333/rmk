@@ -109,8 +109,7 @@ charybdis-rmk/
   - True 2D coasting for vertical `wheel` and horizontal `pan`.
 - **Smart Auto-Mouse Layer (Layer 1)**:
   - Activation: threshold 4 counts (~0.12mm ball movement).
-  - Deactivation: instant on typing any regular key (`deactivate_on_key = true`), no idle timeout (`timeout = 0ms`), manual toggle via `to!(0)`.
-  - Modifier passthrough: `extra_mouse_keys = ["LCtrl", "LShift", "LAlt", "LGui"]` allows Ctrl+Click, Shift+Click, etc. without deactivating.
+  - Deactivation: manual toggle via `to!(0)` (`deactivate_on_key = false`, no idle timeout `timeout = 0ms`).
   - Gaming protection: `blocked_layers = [5]` prevents auto-mouse triggering while in game layer.
 - **Auxiliary Layer Modes**:
   - Sniper Mode (Layer 6): 1/6 divisor retained as fixed fallback.

@@ -14,9 +14,8 @@ subs = 2
 target_layer = 1
 threshold = 4
 timeout = "0ms"
-deactivate_on_key = true
-reset_timeout_on_key = true
-extra_mouse_keys = ["LCtrl", "LShift", "LAlt", "LGui"]
+deactivate_on_key = false
+reset_timeout_on_key = false
 blocked_layers = [5]
 
 [keyboard]
