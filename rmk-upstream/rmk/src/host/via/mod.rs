@@ -40,6 +40,39 @@ impl<'a> VialService<'a> {
     async fn process_via_packet(&self, report: &mut ViaReport) {
         let command_id = report.output_data[0];
 
+        // Layer Keystroke Statistics query (Command 0x53 = 'S')
+        if command_id == 0x53 {
+            let subcmd = report.output_data[1];
+            match subcmd {
+                // 0x01: Get Row Stats -> [0x53, 0x01, layer, row]
+                0x01 => {
+                    let layer = report.output_data[2] as usize;
+                    let row = report.output_data[3] as usize;
+                    let counts = crate::keymap::get_key_press_row(layer, row);
+                    report.input_data[0] = 0x53;
+                    report.input_data[1] = 0x01;
+                    report.input_data[2] = layer as u8;
+                    report.input_data[3] = row as u8;
+                    for (col_idx, &count) in counts.iter().enumerate() {
+                        LittleEndian::write_u16(&mut report.input_data[4 + col_idx * 2..6 + col_idx * 2], count);
+                    }
+                }
+                // 0x02: Reset Stats -> [0x53, 0x02, layer (0xFF for all)]
+                0x02 => {
+                    let layer_byte = report.output_data[2];
+                    let layer_opt = if layer_byte == 0xFF { None } else { Some(layer_byte as usize) };
+                    crate::keymap::reset_key_press_stats(layer_opt);
+                    report.input_data[0] = 0x53;
+                    report.input_data[1] = 0x02;
+                    report.input_data[2] = 0; // Success
+                }
+                _ => {
+                    report.input_data[0] = 0xFF;
+                }
+            }
+            return;
+        }
+
         // Caller pre-fills `input_data` from `output_data`, so individual arms
         // only need to overwrite the bytes they actually change.
         match command_id.into() {

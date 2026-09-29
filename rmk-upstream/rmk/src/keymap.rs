@@ -1,4 +1,55 @@
 use core::cell::RefCell;
+use core::sync::atomic::{AtomicU16, Ordering};
+
+// =========================================================================
+// Layer Keystroke Statistics Tracking
+// =========================================================================
+pub const MAX_STATS_LAYERS: usize = 9;
+pub const MAX_STATS_ROWS: usize = 4;
+pub const MAX_STATS_COLS: usize = 12;
+
+const ZERO_ATOMIC: AtomicU16 = AtomicU16::new(0);
+const ZERO_ROW: [AtomicU16; MAX_STATS_COLS] = [ZERO_ATOMIC; MAX_STATS_COLS];
+const ZERO_MATRIX: [[AtomicU16; MAX_STATS_COLS]; MAX_STATS_ROWS] = [ZERO_ROW; MAX_STATS_ROWS];
+static KEY_PRESS_COUNTS: [[[AtomicU16; MAX_STATS_COLS]; MAX_STATS_ROWS]; MAX_STATS_LAYERS] = [ZERO_MATRIX; MAX_STATS_LAYERS];
+
+pub fn record_key_press(layer: usize, row: usize, col: usize) {
+    if layer < MAX_STATS_LAYERS && row < MAX_STATS_ROWS && col < MAX_STATS_COLS {
+        KEY_PRESS_COUNTS[layer][row][col].fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+pub fn get_key_press_row(layer: usize, row: usize) -> [u16; MAX_STATS_COLS] {
+    let mut res = [0u16; MAX_STATS_COLS];
+    if layer < MAX_STATS_LAYERS && row < MAX_STATS_ROWS {
+        for (col, item) in res.iter_mut().enumerate() {
+            *item = KEY_PRESS_COUNTS[layer][row][col].load(Ordering::Relaxed);
+        }
+    }
+    res
+}
+
+pub fn reset_key_press_stats(layer_opt: Option<usize>) {
+    match layer_opt {
+        Some(l) if l < MAX_STATS_LAYERS => {
+            for row in 0..MAX_STATS_ROWS {
+                for col in 0..MAX_STATS_COLS {
+                    KEY_PRESS_COUNTS[l][row][col].store(0, Ordering::Relaxed);
+                }
+            }
+        }
+        None => {
+            for l in 0..MAX_STATS_LAYERS {
+                for row in 0..MAX_STATS_ROWS {
+                    for col in 0..MAX_STATS_COLS {
+                        KEY_PRESS_COUNTS[l][row][col].store(0, Ordering::Relaxed);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
 
 use embassy_time::Duration;
 use rmk_types::action::{EncoderAction, KeyAction};
@@ -232,6 +283,9 @@ impl KeyMapInner<'_> {
                     continue;
                 }
                 self.save_layer_cache(event.pos, layer_idx as u8);
+                if let KeyboardEventPos::Key(k) = event.pos {
+                    record_key_press(layer_idx, k.row as usize, k.col as usize);
+                }
                 return action;
             }
             if layer_idx as u8 == self.behavior.default_layer {
@@ -241,6 +295,9 @@ impl KeyMapInner<'_> {
 
         // Keep release on the same transparent default-layer action as press.
         self.save_layer_cache(event.pos, self.behavior.default_layer);
+        if let KeyboardEventPos::Key(k) = event.pos {
+            record_key_press(self.behavior.default_layer as usize, k.row as usize, k.col as usize);
+        }
         KeyAction::No
     }
 
