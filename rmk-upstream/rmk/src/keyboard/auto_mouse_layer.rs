@@ -427,6 +427,7 @@ mod tests {
                 deactivate_on_key: false,
                 extra_mouse_keys: &[],
                 reset_timeout_on_key: false,
+                blocked_layers: &[],
             },
             self_activated: false,
             deadline: None,

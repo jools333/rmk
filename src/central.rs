@@ -36,7 +36,8 @@ use rmk::input_device::adc::{AnalogEventType, NrfAdc};
 use rmk::input_device::battery::BatteryProcessor;
 use rmk::input_device::pmw3610::{BitBangSpiBus, Pmw3610, Pmw3610Config};
 use rmk::input_device::pointing::{
-    AccelConfig, AccelCurve, PointingDevice, PointingProcessor, PointingProcessorConfig,
+    AccelConfig, AccelCurve, InertialScrollConfig, PointingDevice, PointingProcessor,
+    PointingProcessorConfig,
 };
 use rmk::keyboard::Keyboard;
 use rmk::matrix::Matrix;
@@ -246,6 +247,7 @@ async fn main(spawner: Spawner) {
             midpoint: 2.0,
             curve: AccelCurve::Linear,
         }),
+        inertial_scroll: Some(InertialScrollConfig::default()),
     };
     let mut pointing_processor = PointingProcessor::new(&keymap, pointing_processor_config);
     let mut pointing_controller = PointingProcessorController::new();
