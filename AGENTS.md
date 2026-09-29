@@ -3,7 +3,14 @@
 > **Project**: Production-grade wireless split keyboard firmware built on [RMK](https://github.com/haobogu/rmk) (Rust) for **Charybdis Mini 3×nice!nano v2** with PMW3610 trackball and dual-dongle bonding support.  
 > **Source of Truth**: Migrated 1:1 from ZMK repository [`jools333/charybdis-3-6-dongle-prospector-studio`](https://github.com/jools333/charybdis-3-6-dongle-prospector-studio).  
 > **Git Remote**: `git@github.com:jools333/rmk.git` (`main` branch).  
-> **Last Updated**: 2026-09-25
+> **Last Updated**: 2026-09-29  
+> 
+> > [!IMPORTANT]
+> > **MANDATORY RULE FOR ALL AI AGENTS**: After ANY modification to code, configuration (`keyboard.toml`), keymaps, documentation, or scripts, the agent **MUST ALWAYS**:
+> > 1. Rebuild release binaries via `./build.sh` (or `build.ps1`) if code/config changed.
+> > 2. Create a clean, descriptive Git commit (`git commit -m "..."`).
+> > 3. Immediately push to remote (`git push origin main`).
+> > **Never leave uncommitted or unpushed changes.**
 
 ---
 
@@ -221,4 +228,4 @@ Or manual method:
 - **Unified Dongle Binary**: Do not split `dongle.rs` into home/work binaries. The multi-dongle system is designed to use an identical binary for both dongles.
 - **Trackball SPI**: The PMW3610 requires bit-bang 3-wire SPI (`BitBangSpiBus`) with bidirectional SDIO handling. Do not replace with standard hardware SPI unless hardware level-shifter pinout is modified.
 - **Memory Map**: Flash start is strictly `0x1000` because the nice!nano v2 bootloader occupies `0x0000..0x1000`. Storage sector base is `0xA0000` with 6 sectors.
-- **Commit History**: When making changes, commit cleanly and push to `origin main` using the configured SSH identity.
+- **Mandatory Git Workflow (COMMIT & PUSH AFTER EDITS)**: After making ANY changes, the agent MUST ALWAYS commit cleanly and push to `origin main` using the configured SSH identity. Leaving uncommitted or unpushed changes is strictly forbidden.
