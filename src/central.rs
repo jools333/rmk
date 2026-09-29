@@ -35,7 +35,9 @@ use rmk::host::HostService;
 use rmk::input_device::adc::{AnalogEventType, NrfAdc};
 use rmk::input_device::battery::BatteryProcessor;
 use rmk::input_device::pmw3610::{BitBangSpiBus, Pmw3610, Pmw3610Config};
-use rmk::input_device::pointing::{PointingDevice, PointingProcessor, PointingProcessorConfig};
+use rmk::input_device::pointing::{
+    AccelConfig, AccelCurve, PointingDevice, PointingProcessor, PointingProcessorConfig,
+};
 use rmk::keyboard::Keyboard;
 use rmk::matrix::Matrix;
 use rmk::processor::builtin::wpm::WpmProcessor;
@@ -228,11 +230,22 @@ async fn main(spawner: Spawner) {
         PointingDevice::<Pmw3610<_, _, _>>::new(0, pmw3610_spi, pmw3610_cs, pmw3610_motion, pmw3610_config);
 
     // Pointing processor with axes transform: swap_xy = true, invert_x = true, invert_y = true
+    // and dynamic Leetmouse / RawAccel mouse acceleration (linear curve with subpixel carry)
     let pointing_processor_config = PointingProcessorConfig {
         device_id: 0,
         invert_x: true,
         invert_y: true,
         swap_xy: true,
+        accel: Some(AccelConfig {
+            base_sens: 0.35,
+            accel: 0.6,
+            sens_cap: 5.0,
+            speed_cap: 0.0,
+            offset: 0.0,
+            exponent: 1.0,
+            midpoint: 2.0,
+            curve: AccelCurve::Linear,
+        }),
     };
     let mut pointing_processor = PointingProcessor::new(&keymap, pointing_processor_config);
     let mut pointing_controller = PointingProcessorController::new();

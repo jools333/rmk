@@ -16,6 +16,9 @@ use crate::event::{
 use crate::hid::{KeyboardReport, MouseReport, Report};
 use crate::keymap::KeyMap;
 
+pub mod accel;
+pub use accel::*;
+
 pub const ALL_POINTING_DEVICES: u8 = 255;
 
 /// Motion data from the sensor
@@ -496,7 +499,7 @@ impl MotionAccumulator {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PointingProcessorConfig {
     /// The id of the PointingDevice this processor handles.
     /// Use ALL_POINTING_DEVICES (255) to process events from all devices.
@@ -507,6 +510,8 @@ pub struct PointingProcessorConfig {
     pub invert_y: bool,
     /// Swap X and Y axes (applied to all modes before mode-specific processing)
     pub swap_xy: bool,
+    /// Mouse acceleration configuration (Leetmouse / RawAccel dynamic curve)
+    pub accel: Option<AccelConfig>,
 }
 
 impl Default for PointingProcessorConfig {
@@ -516,6 +521,7 @@ impl Default for PointingProcessorConfig {
             invert_x: false,
             invert_y: false,
             swap_xy: false,
+            accel: None,
         }
     }
 }
@@ -530,16 +536,20 @@ pub struct PointingProcessor<'a> {
     accumulator: MotionAccumulator,
     /// current active mode
     current_mode: PointingMode,
+    /// Dynamic mouse accelerator
+    accelerator: Option<MouseAccelerator>,
 }
 
 impl<'a> PointingProcessor<'a> {
     /// Create a new pointing processor with default settings
     pub fn new(keymap: &'a KeyMap<'a>, config: PointingProcessorConfig) -> Self {
+        let accelerator = config.accel.map(MouseAccelerator::new);
         Self {
             keymap,
             config,
             accumulator: MotionAccumulator::default(),
             current_mode: PointingMode::default(),
+            accelerator,
         }
     }
 
@@ -592,10 +602,18 @@ impl<'a> PointingProcessor<'a> {
                 // modes that generate mouse reports
                 let mouse_report = match self.current_mode {
                     PointingMode::Cursor(cursor_config) => {
-                        let out_x = x.saturating_mul(cursor_config.multiplier_x as i16);
-                        let out_y = y.saturating_mul(cursor_config.multiplier_y as i16);
+                        let (ax, ay) = if let Some(ref mut accel) = self.accelerator {
+                            accel.accelerate(x, y, Instant::now())
+                        } else {
+                            (x, y)
+                        };
+                        let out_x = ax.saturating_mul(cursor_config.multiplier_x as i16);
+                        let out_y = ay.saturating_mul(cursor_config.multiplier_y as i16);
                         let out_x = if cursor_config.invert_x { -out_x } else { out_x };
                         let out_y = if cursor_config.invert_y { -out_y } else { out_y };
+                        if out_x == 0 && out_y == 0 {
+                            return;
+                        }
                         MouseReport {
                             buttons,
                             x: out_x,
@@ -670,6 +688,9 @@ impl<'a> PointingProcessor<'a> {
                 self.config.device_id, event.mode
             );
             self.set_pointing_mode(event.mode);
+            if let Some(ref mut accel) = self.accelerator {
+                accel.reset();
+            }
         }
     }
 }
