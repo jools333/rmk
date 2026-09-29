@@ -44,7 +44,7 @@ use rmk::processor::builtin::wpm::WpmProcessor;
 use rmk::split::PeripheralMatrixConfig;
 use rmk::usb::UsbTransport;
 use rmk::watchdog::Nrf52Watchdog;
-use rmk::{KeymapData, initialize_keymap_and_storage, run_all};
+use rmk::{AutoMouseLayerRunner, KeymapData, initialize_keymap_and_storage, run_all};
 use static_cell::StaticCell;
 
 bind_interrupts!(struct Irqs {
@@ -249,6 +249,7 @@ async fn main(spawner: Spawner) {
     };
     let mut pointing_processor = PointingProcessor::new(&keymap, pointing_processor_config);
     let mut pointing_controller = PointingProcessorController::new();
+    let mut auto_mouse_runner = AutoMouseLayerRunner::new(&keymap);
 
     // Battery processor for voltage monitoring (nice!nano v2 divider)
     let mut adc_device = NrfAdc::new(
@@ -287,6 +288,7 @@ async fn main(spawner: Spawner) {
         pmw3610_device,
         pointing_processor,
         pointing_controller,
+        auto_mouse_runner,
         adc_device,
         batt_proc,
         storage,

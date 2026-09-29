@@ -867,6 +867,8 @@ pub(crate) struct AutoMouseLayerConfig {
     /// When `true`, key presses that do NOT deactivate `target_layer` extend the timeout deadline
     /// (i.e. reset it to now + `timeout`) at the moment the key's action resolves.
     pub reset_timeout_on_key: Option<bool>,
+    /// Layers on which auto mouse layer will not trigger (e.g. gaming layer)
+    pub blocked_layers: Option<Vec<u8>>,
 }
 
 /// Per Key configurations profiles for morse, tap-hold, etc.

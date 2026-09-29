@@ -547,6 +547,7 @@ fn expand_auto_mouse_layer(auto_mouse_layer: &[AutoMouseLayer]) -> proc_macro2::
                 ::rmk::types::keycode::KeyCode::Hid(::rmk::types::keycode::HidKeyCode::#ident)
             }
         });
+        let blocked_layers = &cfg.blocked_layers;
         quote! {
             ::rmk::config::AutoMouseLayerConfig {
                 device_id: #device_id,
@@ -556,6 +557,7 @@ fn expand_auto_mouse_layer(auto_mouse_layer: &[AutoMouseLayer]) -> proc_macro2::
                 deactivate_on_key: #deactivate_on_key,
                 extra_mouse_keys: &[#(#exception_tokens),*],
                 reset_timeout_on_key: #reset_timeout_on_key,
+                blocked_layers: &[#(#blocked_layers),*],
             }
         }
     });

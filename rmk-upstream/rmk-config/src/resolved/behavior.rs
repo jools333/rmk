@@ -20,6 +20,7 @@ pub struct AutoMouseLayer {
     pub deactivate_on_key: bool,
     pub extra_mouse_keys: Vec<String>,
     pub reset_timeout_on_key: bool,
+    pub blocked_layers: Vec<u8>,
 }
 
 /// Default idle timeout (in milliseconds) for [`AutoMouseLayer`] when not specified in `keyboard.toml`.
@@ -251,6 +252,7 @@ impl crate::KeyboardTomlConfig {
                 deactivate_on_key: a.deactivate_on_key.unwrap_or(false),
                 extra_mouse_keys: a.extra_mouse_keys.unwrap_or_default(),
                 reset_timeout_on_key: a.reset_timeout_on_key.unwrap_or(false),
+                blocked_layers: a.blocked_layers.unwrap_or_default(),
             })
             .collect();
 

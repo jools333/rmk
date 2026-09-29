@@ -32,9 +32,9 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
         // Layer 1: Mouse
         // =========================================================================
         [
-            [a!(Transparent), a!(Transparent), mo!(7), mo!(6), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent)],
-            [a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), a!(Transparent), a!(Transparent), a!(Transparent), k!(MouseBtn3), k!(MouseBtn2), k!(MouseBtn1), a!(Transparent)],
-            [a!(Transparent), a!(Transparent), a!(Transparent), mo!(3), mo!(2), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent)],
+            [a!(Transparent), a!(Transparent), mo!(7), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent)],
+            [a!(Transparent), a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent)],
+            [a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent)],
             [a!(No), k!(MouseBtn1), a!(No), k!(MouseBtn2), k!(MouseBtn3), a!(No), a!(No), a!(Transparent), a!(No), to!(0), a!(No), a!(No)],
         ],
 
@@ -83,7 +83,7 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
         // =========================================================================
         [
             [a!(Transparent), a!(Transparent), mo!(7), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent)],
-            [a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), a!(Transparent), a!(Transparent), a!(Transparent), k!(MouseBtn3), k!(MouseBtn2), k!(MouseBtn1), a!(Transparent)],
+            [a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent)],
             [a!(Transparent), a!(Transparent), a!(Transparent), mo!(3), mo!(2), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent)],
             [a!(No), k!(MouseBtn1), a!(No), k!(MouseBtn2), k!(MouseBtn3), a!(No), a!(No), a!(Transparent), a!(No), to!(0), a!(No), a!(No)],
         ],

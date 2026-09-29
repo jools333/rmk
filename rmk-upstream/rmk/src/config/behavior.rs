@@ -58,6 +58,8 @@ pub struct AutoMouseLayerConfig {
     pub extra_mouse_keys: &'static [KeyCode],
     /// When `true`, key presses that do NOT deactivate [`Self::target_layer`] extend the timeout deadline.
     pub reset_timeout_on_key: bool,
+    /// Layers on which auto mouse layer will not trigger (e.g. gaming layer)
+    pub blocked_layers: &'static [u8],
 }
 
 impl Default for AutoMouseLayerConfig {
@@ -70,6 +72,7 @@ impl Default for AutoMouseLayerConfig {
             deactivate_on_key: false,
             extra_mouse_keys: &[],
             reset_timeout_on_key: false,
+            blocked_layers: &[],
         }
     }
 }
@@ -77,10 +80,6 @@ impl Default for AutoMouseLayerConfig {
 impl AutoMouseLayerConfig {
     pub fn new(device_id: Option<u8>, target_layer: u8, timeout: Duration, threshold: u16) -> Self {
         assert!(threshold >= 1, "AutoMouseLayerConfig::new: threshold must be >= 1");
-        assert!(
-            timeout >= Duration::from_millis(1),
-            "AutoMouseLayerConfig::new: timeout must be at least 1ms"
-        );
         Self {
             device_id,
             target_layer,
@@ -100,6 +99,12 @@ impl AutoMouseLayerConfig {
     /// Enable [`Self::reset_timeout_on_key`].
     pub fn with_reset_timeout_on_key(mut self) -> Self {
         self.reset_timeout_on_key = true;
+        self
+    }
+
+    /// Set layers on which auto mouse layer will not trigger.
+    pub fn with_blocked_layers(mut self, blocked_layers: &'static [u8]) -> Self {
+        self.blocked_layers = blocked_layers;
         self
     }
 }

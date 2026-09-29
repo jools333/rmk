@@ -1,8 +1,9 @@
-use rmk::config::{BehaviorConfig, CombosConfig, KeyboardMacrosConfig};
+use rmk::config::{AutoMouseLayerConfig, BehaviorConfig, CombosConfig, KeyboardMacrosConfig};
 use rmk::keyboard::combo::{Combo, ComboConfig};
+use rmk::types::constants::COMBO_MAX_NUM;
+use rmk::types::keycode::{HidKeyCode, KeyCode};
 use rmk::types::modifier::ModifierCombination;
 use rmk::types::morse::{MorseMode, MorseProfile};
-use rmk::types::constants::COMBO_MAX_NUM;
 use rmk::{k, macros, wm};
 
 pub fn get_default_behavior_config() -> BehaviorConfig {
@@ -134,6 +135,29 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     behavior_config.keyboard_macros = KeyboardMacrosConfig::new(
         rmk::keyboard_macros::define_macro_sequences(&[macro0, macro1]),
     );
+
+    // 4. Auto Mouse Layer:
+    // Порог 4 counts (~0.12 мм движения шарика)
+    // Таймаут бездействия выключен (0 мс): возврат только вручную (to!(0)) или по нажатию обычных клавиш
+    // deactivate_on_key = true (любая обычная клавиша мгновенно закрывает мышиный слой)
+    // reset_timeout_on_key = true
+    // Исключения: модификаторы LCtrl, LShift, LAlt, LGui (чтобы работал Ctrl+Click и др.)
+    // Заблокированные слои: Layer 5 (Game) — чтобы в играх при движении трекбола не переключало на мышиный слой
+    let auto_mouse_config = AutoMouseLayerConfig::new(
+        Some(0),
+        1,
+        embassy_time::Duration::from_millis(0),
+        4,
+    )
+    .with_deactivate_on_key(&[
+        KeyCode::Hid(HidKeyCode::LCtrl),
+        KeyCode::Hid(HidKeyCode::LShift),
+        KeyCode::Hid(HidKeyCode::LAlt),
+        KeyCode::Hid(HidKeyCode::LGui),
+    ])
+    .with_reset_timeout_on_key()
+    .with_blocked_layers(&[5]);
+    let _ = behavior_config.auto_mouse_layer.push(auto_mouse_config);
 
     behavior_config
 }

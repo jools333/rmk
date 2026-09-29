@@ -106,12 +106,6 @@ impl crate::KeyboardTomlConfig {
                         }
                         if let Some(timeout) = &entry.timeout {
                             let timeout_ms = timeout.0;
-                            if timeout_ms == 0 {
-                                return Err(
-                                    "keyboard.toml: [[behavior.auto_mouse_layer]].timeout must be at least 1ms"
-                                        .to_string(),
-                                );
-                            }
                             if timeout_ms > u32::MAX as u64 {
                                 return Err(format!(
                                     "keyboard.toml: [[behavior.auto_mouse_layer]].timeout must be <= {}ms (~49 days), got {}ms",

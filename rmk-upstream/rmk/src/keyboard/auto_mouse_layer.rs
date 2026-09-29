@@ -104,6 +104,16 @@ impl<'a, 'k> AutoMouseLayerRunner<'a, 'k> {
             return;
         }
         let target_layer = self.entries[idx].config.target_layer;
+        // Do not activate auto mouse layer if any blocked layer is active
+        if self.entries[idx]
+            .config
+            .blocked_layers
+            .iter()
+            .any(|&l| self.keymap.is_layer_active(l))
+        {
+            return;
+        }
+
         let activated_by_us = self.keymap.activate_layer_if_inactive(target_layer);
         if pointing_step(&mut self.entries, idx, Instant::now(), activated_by_us) == PointingOutcome::OverlapFirstSeen {
             warn!(
@@ -116,12 +126,16 @@ impl<'a, 'k> AutoMouseLayerRunner<'a, 'k> {
     }
 
     async fn on_layer_change_event(&mut self, LayerChangeEvent(top): LayerChangeEvent) {
-        // Layer turned off externally (MO/TG key etc.) — release our hold.
+        // Layer turned off externally (MO/TG key etc.) or a blocked layer became active — release our hold.
         let keymap = self.keymap;
         for entry in self.entries.iter_mut() {
-            if entry.self_activated && !keymap.is_layer_active(entry.config.target_layer) {
+            let blocked = entry.config.blocked_layers.iter().any(|&l| keymap.is_layer_active(l));
+            if entry.self_activated && (!keymap.is_layer_active(entry.config.target_layer) || blocked) {
                 entry.self_activated = false;
                 entry.deadline = None;
+                if blocked {
+                    keymap.deactivate_layer_if_active(entry.config.target_layer);
+                }
                 trace!(
                     "auto_mouse_layer: cleared tracking for layer {} (top now {})",
                     entry.config.target_layer, top
@@ -261,13 +275,18 @@ fn pointing_step(entries: &mut [EntryState], idx: usize, now: Instant, activated
     let target_layer = entries[idx].config.target_layer;
     let shared_with_other = layer_shared_with_other(entries, idx, target_layer);
     let entry = &mut entries[idx];
+    let deadline = if entry.config.timeout.as_micros() > 0 {
+        Some(now + entry.config.timeout)
+    } else {
+        None
+    };
     if activated_by_us || shared_with_other {
         entry.self_activated = true;
         entry.overlap_warned = false;
-        entry.deadline = Some(now + entry.config.timeout);
+        entry.deadline = deadline;
         PointingOutcome::Holding
     } else if entry.self_activated {
-        entry.deadline = Some(now + entry.config.timeout);
+        entry.deadline = deadline;
         PointingOutcome::Idle
     } else if !entry.overlap_warned {
         entry.overlap_warned = true;
@@ -344,6 +363,9 @@ fn keypress_step(entries: &mut [EntryState], action: Action, now: Instant) -> Ve
 
 /// Push `entry.deadline` forward to `now + timeout` if it would extend, not shorten, the current deadline.
 fn extend_deadline(entry: &mut EntryState, now: Instant, timeout: Duration) {
+    if timeout.as_micros() == 0 {
+        return;
+    }
     let new_deadline = now + timeout;
     match entry.deadline {
         Some(current) if current >= new_deadline => {}
