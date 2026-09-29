@@ -237,9 +237,9 @@ async fn main(spawner: Spawner) {
         invert_y: true,
         swap_xy: true,
         accel: Some(AccelConfig {
-            base_sens: 0.35,
+            base_sens: 0.2,
             accel: 0.6,
-            sens_cap: 5.0,
+            sens_cap: 8.0,
             speed_cap: 0.0,
             offset: 0.0,
             exponent: 1.0,
