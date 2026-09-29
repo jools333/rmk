@@ -19,7 +19,7 @@ This repository contains pure Rust firmware replacing ZMK on a 4-node wireless s
 - **100% Offline, Self-Contained Repository**: Embedded patched RMK workspace (`rmk-upstream/`) allows instant building on any Linux/Ubuntu or Windows system without external git submodules or network dependencies.
 - **Dual-Dongle Support (`dongle_profiles = 2`)**: Zero hardcoded MAC addresses. The same `charybdis_dongle.uf2` binary runs on both Home and Work dongles. Dongles are bonded into separate non-volatile flash slots (Home = Slot 0, Work = Slot 1).
 - **Auto-Rotation & Hotkey Switching**: Keyboard searches for the active dongle with a 4-second timeout, automatically rotating between bonded dongles. Manual switching via `User8` / `User9` keys on Layer 8.
-- **Trackball Integration**: PMW3610 optical sensor with 800 CPI, `swap_xy = true`, `invert_x = true`, `invert_y = true`, auto-mouse layer activation (Layer 1 on motion with 1000ms idle timeout), Sniper mode (Layer 6, 1/6 speed), and Scroll mode (Layer 7, 1/3 speed with inverted Y).
+- **Trackball Integration**: PMW3610 optical sensor with 800 CPI, `swap_xy = true`, `invert_x = true`, `invert_y = true`. Features Leetmouse/RawAccel dynamic acceleration (`base_sens = 0.2`, `accel = 0.6`, `sens_cap = 8.0`, carry buffer) for sub-pixel precision without a sniper button, physics-based Inertial/Kinetic Scroll (`friction = 0.92`, touch-braking, 12ms tick), and Smart Auto-Mouse Layer (threshold 4 counts, instant key deactivation, modifier passthrough, game layer blocked).
 - **Exact Layout & Behaviors**: 9 layers, 14 combos, 2 macros (`->`, `=>`), home-row mods, USB HID boot protocol support for BIOS/UEFI.
 
 ---
@@ -94,10 +94,26 @@ charybdis-rmk/
 - **Transform**:
   - Base CPI: 800 CPI
   - Coordinates: `swap_xy = true`, `invert_x = true`, `invert_y = true`
-- **Dynamic Layer Modes**:
-  - Auto-Mouse (Layer 1): Activated on trackball motion with 1000ms idle timeout.
-  - Sniper Mode (Layer 6): CPI divided by 6 for pixel-precise aiming.
-  - Scroll Mode (Layer 7): CPI divided by 3, Y-axis inverted for natural wheel emulation.
+- **Dynamic Mouse Acceleration (Leetmouse / RawAccel)**:
+  - ARM Cortex-M4F hardware FPU acceleration with sub-pixel carry buffer (`carry_x`, `carry_y`).
+  - Base sensitivity: `0.2` (~160 CPI for micro-aiming, completely removing the need to hold a sniper layer).
+  - Acceleration rate: `0.6` (Linear curve).
+  - Sensitivity cap: `8.0` (up to 1.6x = 1280 CPI on fast flicks).
+  - Sits in `rmk-upstream/rmk/src/input_device/pointing/accel.rs`.
+- **Inertial / Kinetic Scrolling**:
+  - Physics-based momentum with friction decay (`friction: 0.92`, `rmk-upstream/rmk/src/input_device/pointing/inertial_scroll.rs`).
+  - Polling interval: 12ms (~83 Hz) via `PollingProcessor`.
+  - Flick detection: starts coasting when idle timeout >= 35ms after high-speed rotation.
+  - Instant Touch-Brake: any touch of the trackball immediately stops inertia.
+  - True 2D coasting for vertical `wheel` and horizontal `pan`.
+- **Smart Auto-Mouse Layer (Layer 1)**:
+  - Activation: threshold 4 counts (~0.12mm ball movement).
+  - Deactivation: instant on typing any regular key (`deactivate_on_key = true`), no idle timeout (`timeout = 0ms`), manual toggle via `to!(0)`.
+  - Modifier passthrough: `extra_mouse_keys = ["LCtrl", "LShift", "LAlt", "LGui"]` allows Ctrl+Click, Shift+Click, etc. without deactivating.
+  - Gaming protection: `blocked_layers = [5]` prevents auto-mouse triggering while in game layer.
+- **Auxiliary Layer Modes**:
+  - Sniper Mode (Layer 6): 1/6 divisor retained as fixed fallback.
+  - Scroll Mode (Layer 7): 1/24 divisor for ultra-smooth physical and inertial scrolling.
 
 ---
 
