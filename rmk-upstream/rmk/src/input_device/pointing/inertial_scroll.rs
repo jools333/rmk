@@ -23,17 +23,21 @@ pub struct InertialScrollConfig {
     pub stop_velocity: f32,
     /// Idle duration in milliseconds after physical motion before coasting begins.
     pub release_timeout_ms: f32,
+    /// Velocity threshold below which progressive ease-out braking is applied.
+    /// Eliminates abrupt cutoff at the end and provides a natural, smooth landing.
+    pub ease_out_velocity: f32,
 }
 
 impl Default for InertialScrollConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            friction: 0.92,
+            friction: 0.95,
             min_velocity: 0.8,
             max_velocity: 8.0,
-            stop_velocity: 0.05,
+            stop_velocity: 0.015,
             release_timeout_ms: 35.0,
+            ease_out_velocity: 0.6,
         }
     }
 }
@@ -166,16 +170,24 @@ impl InertialScroller {
             };
             self.last_tick_time = Some(now);
 
-            // Apply friction decay
-            self.vel_x *= self.config.friction;
-            self.vel_y *= self.config.friction;
-
             let speed = libm::sqrtf(self.vel_x * self.vel_x + self.vel_y * self.vel_y);
             if speed < self.config.stop_velocity {
-                // Coasting finished
+                // Coasting finished smoothly
                 self.cancel();
                 return None;
             }
+
+            // Apply progressive ease-out friction decay for smooth deceleration at the end
+            let effective_friction = if self.config.ease_out_velocity > 0.0 && speed < self.config.ease_out_velocity {
+                let t = speed / self.config.ease_out_velocity;
+                let min_friction = self.config.friction - 0.05;
+                min_friction + (self.config.friction - min_friction) * (t * (2.0 - t))
+            } else {
+                self.config.friction
+            };
+
+            self.vel_x *= effective_friction;
+            self.vel_y *= effective_friction;
 
             // Displacement for this tick
             let step_x_f = self.vel_x * dt_ms + self.carry_x;
@@ -226,6 +238,7 @@ mod tests {
             max_velocity: 8.0,
             stop_velocity: 0.05,
             release_timeout_ms: 35.0,
+            ease_out_velocity: 0.0,
         };
         let mut scroller = InertialScroller::new(config);
         let mut now = Instant::from_ticks(0);
@@ -251,6 +264,7 @@ mod tests {
             max_velocity: 8.0,
             stop_velocity: 0.1,
             release_timeout_ms: 35.0,
+            ease_out_velocity: 0.0,
         };
         let mut scroller = InertialScroller::new(config);
         let mut now = Instant::from_ticks(0);
@@ -300,5 +314,45 @@ mod tests {
 
         // Coasting must be immediately canceled
         assert!(!scroller.is_coasting());
+    }
+
+    #[test]
+    fn test_smooth_ease_out_tail() {
+        let config = InertialScrollConfig::default();
+        let mut scroller = InertialScroller::new(config);
+        let mut now = Instant::from_ticks(0);
+
+        // Fast flick: 25 counts over 10ms = 2.5 counts/ms
+        scroller.on_motion(0, 25, now);
+        now += Duration::from_millis(10);
+        scroller.on_motion(0, 25, now);
+
+        now += Duration::from_millis(40);
+        let step = scroller.tick(now);
+        assert!(step.is_some());
+        assert!(scroller.is_coasting());
+
+        // Track velocity decay as it enters the ease_out zone (< 0.6)
+        let mut in_ease_out = false;
+        let mut last_speed = f32::MAX;
+        let mut steps_in_tail = 0;
+
+        while scroller.is_coasting() {
+            now += Duration::from_millis(12);
+            let cur_speed = libm::sqrtf(scroller.vel_x * scroller.vel_x + scroller.vel_y * scroller.vel_y);
+            if cur_speed < config.ease_out_velocity {
+                in_ease_out = true;
+                steps_in_tail += 1;
+            }
+            if cur_speed > 0.0 {
+                assert!(cur_speed <= last_speed, "Speed must decay monotonically");
+                last_speed = cur_speed;
+            }
+            let _ = scroller.tick(now);
+        }
+
+        assert!(in_ease_out, "Must have entered ease-out phase");
+        assert!(steps_in_tail >= 10, "Tail phase must have multiple smooth steps before stopping");
+        assert_eq!(scroller.is_coasting(), false);
     }
 }

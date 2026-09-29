@@ -564,6 +564,13 @@ impl<'a> PointingProcessor<'a> {
 
     /// Set the pointing mode
     pub fn set_pointing_mode(&mut self, mode: PointingMode) -> &mut Self {
+        if !matches!(mode, PointingMode::Scroll(_)) {
+            if let Some(ref mut scroller) = self.scroller {
+                scroller.cancel();
+            }
+            self.accumulator.reset_x();
+            self.accumulator.reset_y();
+        }
         self.current_mode = mode;
         self
     }
@@ -571,6 +578,7 @@ impl<'a> PointingProcessor<'a> {
     /// Periodic tick for background tasks such as inertial / kinetic scrolling
     async fn poll(&mut self) {
         if let Some(ref mut scroller) = self.scroller {
+            let was_coasting = scroller.is_coasting();
             let now = Instant::now();
             if let Some((sx, sy)) = scroller.tick(now) {
                 let scroll_config = match self.current_mode {
@@ -605,6 +613,10 @@ impl<'a> PointingProcessor<'a> {
                     }))
                     .await;
                 }
+            } else if was_coasting && !scroller.is_coasting() {
+                // Coasting finished smoothly: clear remainder to prevent ghost offset
+                self.accumulator.reset_x();
+                self.accumulator.reset_y();
             }
         }
     }
