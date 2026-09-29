@@ -56,6 +56,7 @@ impl<'a> VialService<'a> {
                     for (col_idx, &count) in counts.iter().enumerate() {
                         LittleEndian::write_u16(&mut report.input_data[4 + col_idx * 2..6 + col_idx * 2], count);
                     }
+                    report.input_data[28] = self.ctx.active_layer();
                 }
                 // 0x02: Reset Stats -> [0x53, 0x02, layer (0xFF for all)]
                 0x02 => {
