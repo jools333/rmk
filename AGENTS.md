@@ -27,7 +27,7 @@ This repository contains pure Rust firmware replacing ZMK on a 4-node wireless s
 - **Dual-Dongle Support (`dongle_profiles = 2`)**: Zero hardcoded MAC addresses. The same `charybdis_dongle.uf2` binary runs on both Home and Work dongles. Dongles are bonded into separate non-volatile flash slots (Home = Slot 0, Work = Slot 1).
 - **Auto-Rotation & Hotkey Switching**: Keyboard searches for the active dongle with a 4-second timeout, automatically rotating between bonded dongles. Manual switching via `User8` / `User9` keys on Layer 8.
 - **Trackball Integration**: PMW3610 optical sensor with 800 CPI, `swap_xy = true`, `invert_x = true`, `invert_y = true`. Features Leetmouse/RawAccel dynamic acceleration (`base_sens = 0.2`, `accel = 1.2`, `sens_cap = 12.0`, carry buffer) for sub-pixel precision without a sniper button, physics-based Inertial/Kinetic Scroll (`friction = 0.95`, ease-out tail, touch-braking, 12ms tick), and Smart Auto-Mouse Layer (threshold 4 counts, instant key deactivation, modifier passthrough, game layer blocked).
-- **Exact Layout & Behaviors**: 9 layers, 14 combos, 4 macros (`->`, `=>`, `gt`, `gT`), home-row mods, USB HID boot protocol support for BIOS/UEFI.
+- **Exact Layout & Behaviors**: 9 layers, 13 combos, 4 macros (`->`, `=>`, `gt`, `gT`), home-row mods, global cross-layer combos with auto-return to Layer 0 (`switch_to_default_layer = true`), USB HID boot protocol support for BIOS/UEFI.
 
 ---
 
@@ -152,31 +152,34 @@ We enhanced RMK upstream (`feature/multi-dongle-bonds`, embedded in `rmk-upstrea
 
 ## 5. Keymap & Layer Reference
 
-- **Layer 0 (Base)**: QWERTY + Home-row mod-taps (`mt!`, `gqt!`), layer-taps on thumbs and letters (`lt!(1, E)`, `lt!(6, R)`, `lt!(7, W)`, `lt!(2, Delete)`, `lt!(3, Backspace)`).
-- **Layer 1 (Mouse)**: Mouse buttons (MB1, MB2, MB3) on both thumbs and home row, momentary access to Sniper (`mo!(6)`) and Scroll (`mo!(7)`), toggle to Layer 0 (`to!(0)`).
+- **Layer 0 (Base)**: QWERTY + Home-row mods (`D` = LAlt, `F` = LShift, `G` = LCtrl, `K` = LAlt, `J` = RShift, `H` = RCtrl), thumb mods (`Space` = LGui, `Delete` = LGui, `Enter` = RGui). Direct non-delayed keys on `E`, `R`, `'` (Quote), `ESC`. Layer-taps on `lt!(7, W)`, `lt!(2, Delete)`, `lt!(3, Backspace)`.
+- **Layer 1 (Mouse)**: Mouse buttons (MB1, MB2, MB3) on both thumbs, shortcuts Win+1/3/4, GraveEscape, Vim tab macros `macros!(2)` (`gt`) and `macros!(3)` (`gT`), `F5`, momentary access to Sniper (`mo!(6)`) and Scroll (`mo!(7)`), toggle to Layer 0 (`to!(0)`).
 - **Layer 2 (Symbol)**: Shifted symbols (`!@#$%^&*()_+`), braces, brackets, pipe, tilde, and layer toggles (`tg!(4)` Fun, `tg!(5)` Game, `tg!(3)` Num).
-- **Layer 3 (Number)**: Numeric row, navigation cluster (Home, End, Up, Down, Left, Right), function keys F1..F12, search shortcuts.
+- **Layer 3 (Number)**: Numeric row, navigation cluster (Home, End, Up, Down, Left, Right), function keys F1..F12, search shortcuts, transparent thumb Enter (`a!(Transparent)`).
 - **Layer 4 (Function)**: Complete F1..F12 matrix, Ctrl+Alt+Del combo, modifier cluster.
 - **Layer 5 (Button / Game)**: WASD gaming layout with direct space/alt thumb bindings and 1..5 numbers.
 - **Layer 6 (MouseSnip)**: Sniper mode with 1/6 tracking speed divisor.
 - **Layer 7 (MouseScroll)**: Scroll wheel simulation with 1/3 speed divisor and inverted Y.
 - **Layer 8 (Reset)**: Bootloader access, Dongle 0/1 profile selection, BLE host profiles 0..2.
 
-### Combos (14 Total)
-- `Q + P` -> `Win+Shift+P` (VPN Toggle)
-- `LGui + '` -> `Win+S` (Web Search)
-- `F + J` -> `Win+Space` (Language Switch)
+### Combos (13 Total)
+- `Ctrl+C + Quote` -> `Win+1` (App 1)
+- `E + I` -> `Win+3` (App 3)
+- `R + U` -> `Win+4` (App 4)
 - `Z + /` -> `Win+Shift+Q` (Close Window)
-- `V + M` -> `Win+Z` (Editor Action)
+- `V + M` -> `Win+2` (App 2)
 - `F + ;` -> `Ctrl+S` (Save)
-- `R + U` -> `Win+A` (Messenger)
-- `E + I` -> `Win+X` (Command Palette)
+- `F + J` -> `Win+Space` (Language Switch)
 - `A + ;` -> `Ctrl+P` (Quick Open)
 - `W + O` -> Macro 0 (`->`)
 - `C + ,` -> `Alt+Tab` (Window Switch)
 - `X + .` -> Macro 1 (`=>`)
 - `X + /` -> `Win+Shift+Y` (VPN 2 Toggle)
-- `Ctrl+F12` on Num Layer -> Search
+- `Delete + Backspace` -> `Ctrl+F12` (Global Search)
+
+**Combo Engine Enhancements**:
+- Cross-Layer Matching: Combos match against base layer actions (Layer 0) even from Mouse or Symbol layers.
+- Auto Layer Reset (`switch_to_default_layer = true`): Triggering any combo resets active layers back to Layer 0, seamlessly returning from auto-mouse without manual `to!(0)`.
 
 ---
 
