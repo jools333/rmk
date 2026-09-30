@@ -35,8 +35,8 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
         // =========================================================================
         [
             [a!(Transparent), a!(Transparent), mo!(7), a!(Transparent), a!(Transparent), a!(Transparent), special!(GraveEscape), a!(Transparent), a!(Transparent), wm!(Kc4, ModifierCombination::LGUI), wm!(Kc3, ModifierCombination::LGUI), wm!(Kc1, ModifierCombination::LGUI)],
-            [a!(Transparent), a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), macros!(2), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent)],
-            [a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), macros!(3), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), k!(F5)],
+            [a!(Transparent), a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), macros!(3), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent)],
+            [a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), macros!(2), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), k!(F5)],
             [a!(No), k!(MouseBtn1), a!(No), k!(MouseBtn2), k!(MouseBtn3), a!(No), a!(No), k!(MouseBtn1), a!(No), to!(0), a!(No), a!(No)],
         ],
 
