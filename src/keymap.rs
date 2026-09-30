@@ -2,6 +2,7 @@ use rmk::a;
 use rmk::k;
 use rmk::kbctrl;
 use rmk::lt;
+use rmk::macros;
 use rmk::mo;
 use rmk::mt;
 use rmk::special;
@@ -23,7 +24,7 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
         // Layer 0: Base
         // =========================================================================
         [
-            [k!(Tab),   k!(Q), lt!(7, W), lt!(1, E), lt!(6, R),                       k!(T),   k!(LeftBracket),                 k!(P),         k!(O),     k!(I),     k!(U), k!(Y)],
+            [k!(Tab),   k!(Q), lt!(7, W), k!(E),     k!(R),                           k!(T),   k!(LeftBracket),                 k!(P),         k!(O),     k!(I),     k!(U), k!(Y)],
             [wm!(C, ModifierCombination::LCTRL), k!(A), k!(S), mt!(D, ModifierCombination::LALT), mt!(F, ModifierCombination::LSHIFT), mt!(G, ModifierCombination::LCTRL), mt!(Quote, ModifierCombination::LCTRL), k!(Semicolon), k!(L), mt!(K, ModifierCombination::LALT), mt!(J, ModifierCombination::RSHIFT), mt!(H, ModifierCombination::RCTRL)],
             [wm!(V, ModifierCombination::LCTRL), k!(Z), k!(X), k!(C), k!(V), k!(B), mt!(Escape, ModifierCombination::LALT), k!(Slash), k!(Dot), k!(Comma), k!(M), k!(N)],
             [a!(No), mt!(Space, ModifierCombination::LGUI), a!(No), mt!(Delete, ModifierCombination::LGUI), lt!(2, Delete), a!(No), a!(No), mt!(Enter, ModifierCombination::RGUI), a!(No), lt!(3, Backspace), a!(No), a!(No)],
@@ -34,8 +35,8 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
         // =========================================================================
         [
             [a!(Transparent), a!(Transparent), mo!(7), a!(Transparent), a!(Transparent), a!(Transparent), special!(GraveEscape), a!(Transparent), a!(Transparent), wm!(Kc4, ModifierCombination::LGUI), wm!(Kc3, ModifierCombination::LGUI), wm!(Kc1, ModifierCombination::LGUI)],
-            [a!(Transparent), a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), a!(Transparent), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent)],
-            [a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), k!(F5)],
+            [a!(Transparent), a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), macros!(2), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent)],
+            [a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), macros!(3), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), k!(F5)],
             [a!(No), k!(MouseBtn1), a!(No), k!(MouseBtn2), k!(MouseBtn3), a!(No), a!(No), k!(MouseBtn1), a!(No), to!(0), a!(No), a!(No)],
         ],
 

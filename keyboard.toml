@@ -57,8 +57,8 @@ timeout = "60ms"
 prior_idle_time = "125ms"
 combos = [
     { actions = ["WM(C, LCtrl)", "Quote"], output = "WM(Kc1, LGui)" },
-    { actions = ["LT(1, E)", "I"], output = "WM(Kc3, LGui)" },
-    { actions = ["LT(6, R)", "U"], output = "WM(Kc4, RGui)" },
+    { actions = ["E", "I"], output = "WM(Kc3, LGui)" },
+    { actions = ["R", "U"], output = "WM(Kc4, RGui)" },
     { actions = ["Z", "Slash"], output = "WM(Q, LShift | LGui)" },
     { actions = ["V", "M"], output = "WM(Kc2, RGui)" },
     { actions = ["F", "Semicolon"], output = "WM(S, LCtrl)" },
