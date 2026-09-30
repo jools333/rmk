@@ -56,14 +56,13 @@ timeout = "1000ms"
 timeout = "60ms"
 prior_idle_time = "125ms"
 combos = [
-    { actions = ["Q", "P"], output = "WM(P, LShift | LGui)" },
-    { actions = ["LGui", "Quote"], output = "WM(S, RGui)" },
-    { actions = ["F", "J"], output = "WM(Space, RGui)" },
+    { actions = ["WM(C, LCtrl)", "Quote"], output = "WM(Kc1, LGui)" },
+    { actions = ["LT(1, E)", "I"], output = "WM(Kc3, LGui)" },
+    { actions = ["LT(6, R)", "U"], output = "WM(Kc4, RGui)" },
     { actions = ["Z", "Slash"], output = "WM(Q, LShift | LGui)" },
-    { actions = ["V", "M"], output = "WM(Z, RGui)" },
+    { actions = ["V", "M"], output = "WM(Kc2, RGui)" },
     { actions = ["F", "Semicolon"], output = "WM(S, LCtrl)" },
-    { actions = ["R", "U"], output = "WM(A, RGui)" },
-    { actions = ["E", "I"], output = "WM(X, RGui)" },
+    { actions = ["F", "J"], output = "WM(Space, LGui)" },
     { actions = ["A", "Semicolon"], output = "WM(P, RCtrl)" },
     { actions = ["W", "O"], output = "MACRO(0)" },
     { actions = ["C", "Comma"], output = "WM(Tab, LAlt)" },

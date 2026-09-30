@@ -3,7 +3,7 @@ use rmk::keyboard::combo::{Combo, ComboConfig};
 use rmk::types::constants::COMBO_MAX_NUM;
 use rmk::types::modifier::ModifierCombination;
 use rmk::types::morse::{MorseMode, MorseProfile};
-use rmk::{k, macros, wm};
+use rmk::{k, lt, macros, wm};
 
 pub fn get_default_behavior_config() -> BehaviorConfig {
     let mut behavior_config = BehaviorConfig::default();
@@ -36,22 +36,22 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
 
     // 2. Все 14 комбо из раскладки Charybdis Mini / keyboard.toml
     let combos: [Option<Combo>; COMBO_MAX_NUM] = [
-        // 1. Q + P -> Win+Shift+P (VPN Toggle)
+        // 1. Ctrl+C + Quote -> Win+1 (App 1)
         Some(Combo::new(ComboConfig::new(
-            [k!(Q), k!(P)],
-            wm!(P, ModifierCombination::LSHIFT | ModifierCombination::LGUI),
+            [wm!(C, ModifierCombination::LCTRL), k!(Quote)],
+            wm!(Kc1, ModifierCombination::LGUI),
             None,
         ))),
-        // 2. LGui + Quote -> Win+S (Web Search)
+        // 2. lt!(1, E) + I -> Win+3 (App 3)
         Some(Combo::new(ComboConfig::new(
-            [k!(LGui), k!(Quote)],
-            wm!(S, ModifierCombination::RGUI),
+            [lt!(1, E), k!(I)],
+            wm!(Kc3, ModifierCombination::LGUI),
             None,
         ))),
-        // 3. F + J -> Win+Space (Language Switch)
+        // 3. lt!(6, R) + U -> Win+4 (App 4)
         Some(Combo::new(ComboConfig::new(
-            [k!(F), k!(J)],
-            wm!(Space, ModifierCombination::RGUI),
+            [lt!(6, R), k!(U)],
+            wm!(Kc4, ModifierCombination::RGUI),
             None,
         ))),
         // 4. Z + Slash -> Win+Shift+Q (Close Window)
@@ -60,10 +60,10 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             wm!(Q, ModifierCombination::LSHIFT | ModifierCombination::LGUI),
             None,
         ))),
-        // 5. V + M -> Win+Z (Editor Action)
+        // 5. V + M -> Win+2 (App 2)
         Some(Combo::new(ComboConfig::new(
             [k!(V), k!(M)],
-            wm!(Z, ModifierCombination::RGUI),
+            wm!(Kc2, ModifierCombination::RGUI),
             None,
         ))),
         // 6. F + Semicolon -> Ctrl+S (Save)
@@ -72,18 +72,14 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             wm!(S, ModifierCombination::LCTRL),
             None,
         ))),
-        // 7. R + U -> Win+A (Messenger)
+        // 7. F + J -> Win+Space (Language Switch)
         Some(Combo::new(ComboConfig::new(
-            [k!(R), k!(U)],
-            wm!(A, ModifierCombination::RGUI),
+            [k!(F), k!(J)],
+            wm!(Space, ModifierCombination::LGUI),
             None,
         ))),
-        // 8. E + I -> Win+X (Command Palette)
-        Some(Combo::new(ComboConfig::new(
-            [k!(E), k!(I)],
-            wm!(X, ModifierCombination::RGUI),
-            None,
-        ))),
+        // 8. (Empty)
+        None,
         // 9. A + Semicolon -> Ctrl+P (Quick Open)
         Some(Combo::new(ComboConfig::new(
             [k!(A), k!(Semicolon)],

@@ -34,8 +34,8 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
         // =========================================================================
         [
             [a!(Transparent), a!(Transparent), mo!(7), a!(Transparent), a!(Transparent), a!(Transparent), special!(GraveEscape), a!(Transparent), a!(Transparent), wm!(Kc4, ModifierCombination::LGUI), wm!(Kc3, ModifierCombination::LGUI), wm!(Kc1, ModifierCombination::LGUI)],
-            [a!(Transparent), a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), wm!(Right, ModifierCombination::LCTRL | ModifierCombination::LGUI), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent)],
-            [a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), wm!(Left, ModifierCombination::LCTRL | ModifierCombination::LGUI), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), k!(F5)],
+            [a!(Transparent), a!(Transparent), k!(LGui), k!(LAlt), k!(LShift), k!(LCtrl), a!(Transparent), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent), lt!(7, ErrorRollover), a!(Transparent)],
+            [a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), a!(Transparent), k!(F5)],
             [a!(No), k!(MouseBtn1), a!(No), k!(MouseBtn2), k!(MouseBtn3), a!(No), a!(No), k!(MouseBtn1), a!(No), to!(0), a!(No), a!(No)],
         ],
 
