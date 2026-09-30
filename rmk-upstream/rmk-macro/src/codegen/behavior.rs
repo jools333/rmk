@@ -212,11 +212,17 @@ fn expand_combos(
                 }
             };
 
+            let switch_to_default_layer = match combos.switch_to_default_layer {
+                Some(enabled) => quote! { switch_to_default_layer: #enabled, },
+                None => quote! {},
+            };
+
             quote! {
                 ::rmk::config::CombosConfig {
                     #combos_field
                     #timeout
                     #prior_idle_time
+                    #switch_to_default_layer
                     ..Default::default()
                 }
             }

@@ -55,6 +55,7 @@ timeout = "1000ms"
 [behavior.combo]
 timeout = "60ms"
 prior_idle_time = "125ms"
+switch_to_default_layer = true
 combos = [
     { actions = ["WM(C, LCtrl)", "Quote"], output = "WM(Kc1, LGui)" },
     { actions = ["E", "I"], output = "WM(Kc3, LGui)" },

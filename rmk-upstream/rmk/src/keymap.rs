@@ -566,6 +566,24 @@ impl<'a> KeyMap<'a> {
         inner.update_tri_layer();
     }
 
+    /// Reset active layers to default layer by deactivating all other active layers.
+    ///
+    /// Publishes a single [`LayerChangeEvent`] if any layer state actually changed.
+    pub(crate) fn reset_to_default_layer(&self) {
+        let mut inner = self.inner.borrow_mut();
+        let default_layer = inner.behavior.default_layer as usize;
+        let mut changed = false;
+        for i in 0..inner.num_layer {
+            if i != default_layer && inner.layer_state[i] {
+                inner.layer_state[i] = false;
+                changed = true;
+            }
+        }
+        if changed {
+            inner.update_tri_layer();
+        }
+    }
+
     pub(crate) fn auto_mouse_layer_configs(
         &self,
     ) -> heapless::Vec<crate::config::AutoMouseLayerConfig, { crate::AUTO_MOUSE_LAYER_MAX_NUM }> {
@@ -637,6 +655,10 @@ impl<'a> KeyMap<'a> {
 
     pub(crate) fn combo_prior_idle_time(&self) -> Option<Duration> {
         self.inner.borrow().behavior.combo.prior_idle_time
+    }
+
+    pub(crate) fn combo_switch_to_default_layer(&self) -> bool {
+        self.inner.borrow().behavior.combo.switch_to_default_layer
     }
 
     pub(crate) fn one_shot_timeout(&self) -> Duration {

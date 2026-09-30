@@ -41,6 +41,7 @@ pub struct Combos {
     pub combos: Vec<Combo>,
     pub timeout_ms: Option<u64>,
     pub prior_idle_time_ms: Option<u64>,
+    pub switch_to_default_layer: Option<bool>,
 }
 
 pub struct Combo {
@@ -143,6 +144,7 @@ impl crate::KeyboardTomlConfig {
                 .collect(),
             timeout_ms: c.timeout.map(|t| t.0),
             prior_idle_time_ms: c.prior_idle_time.map(|t| t.0),
+            switch_to_default_layer: c.switch_to_default_layer,
         });
 
         let macros = toml_behavior.macros.map(|m| Macros {

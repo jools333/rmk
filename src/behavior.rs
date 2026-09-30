@@ -120,6 +120,7 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
         combos,
         timeout: embassy_time::Duration::from_millis(60),
         prior_idle_time: None,
+        switch_to_default_layer: true,
     };
 
     // 3. Макросы:

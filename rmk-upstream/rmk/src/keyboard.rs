@@ -1066,6 +1066,9 @@ impl<'a> Keyboard<'a> {
             debug!("[Combo] {:?} triggered", action);
             // Reset other combos shadowed by the one that just fired.
             self.reset_shadowed_combos(&combo_actions);
+            if self.keymap.combo_switch_to_default_layer() {
+                self.keymap.reset_to_default_layer();
+            }
         }
     }
 
@@ -1186,6 +1189,9 @@ impl<'a> Keyboard<'a> {
                     !triggered_actions.contains(&item.action) && !triggered_actions.contains(&item_base_action)
                 });
                 self.reset_shadowed_combos(&triggered_actions);
+                if self.keymap.combo_switch_to_default_layer() {
+                    self.keymap.reset_to_default_layer();
+                }
                 return (Some(next_action), true);
             }
             (None, false)

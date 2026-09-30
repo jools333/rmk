@@ -184,6 +184,8 @@ pub struct CombosConfig {
     /// Cooldown after any key press before a combo can start recording.
     /// `None` = no idle check (backward compatible). Equivalent to ZMK `require-prior-idle-ms`.
     pub prior_idle_time: Option<Duration>,
+    /// Whether to reset active layer to default layer (layer 0) when any combo triggers.
+    pub switch_to_default_layer: bool,
 }
 
 impl Default for CombosConfig {
@@ -192,6 +194,7 @@ impl Default for CombosConfig {
             timeout: Duration::from_millis(50),
             combos: core::array::from_fn(|_| None),
             prior_idle_time: None,
+            switch_to_default_layer: false,
         }
     }
 }

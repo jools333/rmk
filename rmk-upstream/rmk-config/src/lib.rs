@@ -928,6 +928,7 @@ pub(crate) struct CombosConfig {
     pub combos: Vec<ComboConfig>,
     pub timeout: Option<DurationMillis>,
     pub prior_idle_time: Option<DurationMillis>,
+    pub switch_to_default_layer: Option<bool>,
 }
 
 /// Configurations for combo
