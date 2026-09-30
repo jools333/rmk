@@ -46,25 +46,43 @@ impl Combo {
 
     /// Update the combo's state when a key is pressed.
     /// Returns true if the combo is updated.
-    pub(crate) fn update(&mut self, key_action: &KeyAction, key_event: KeyboardEvent, active_layer: u8) -> bool {
+    pub(crate) fn update(
+        &mut self,
+        key_action: &KeyAction,
+        base_action: &KeyAction,
+        key_event: KeyboardEvent,
+        active_layer: u8,
+    ) -> bool {
         if !key_event.pressed || self.config.size() == 0 || self.is_triggered {
             // Ignore combo that without actions
             return false;
         }
 
-        if let Some(layer) = self.config.layer
-            && layer != active_layer
-        {
-            return false;
+        if let Some(layer) = self.config.layer {
+            if layer != active_layer {
+                return false;
+            }
+            let action_idx = self.config.find_key_action_index(key_action);
+            if let Some(i) = action_idx {
+                self.state |= 1 << i;
+            } else if !self.is_all_pressed() {
+                self.reset();
+            }
+            action_idx.is_some()
+        } else {
+            // Global combo: match against base_action (Layer 0) first,
+            // or active key_action if base_action didn't match.
+            let action_idx = self
+                .config
+                .find_key_action_index(base_action)
+                .or_else(|| self.config.find_key_action_index(key_action));
+            if let Some(i) = action_idx {
+                self.state |= 1 << i;
+            } else if !self.is_all_pressed() {
+                self.reset();
+            }
+            action_idx.is_some()
         }
-
-        let action_idx = self.config.find_key_action_index(key_action);
-        if let Some(i) = action_idx {
-            self.state |= 1 << i;
-        } else if !self.is_all_pressed() {
-            self.reset();
-        }
-        action_idx.is_some()
     }
 
     /// Re-assert a combo key's bit in the state of an already-triggered combo.
@@ -76,11 +94,18 @@ impl Combo {
     ///
     /// Returns true iff this combo is triggered and `key_action` is one of its
     /// actions, i.e. the caller should swallow the press.
-    pub(crate) fn reassert_if_triggered(&mut self, key_action: &KeyAction) -> bool {
+    pub(crate) fn reassert_if_triggered(&mut self, key_action: &KeyAction, base_action: &KeyAction) -> bool {
         if !self.is_triggered {
             return false;
         }
-        if let Some(i) = self.config.find_key_action_index(key_action) {
+        let action_idx = if self.config.layer.is_some() {
+            self.config.find_key_action_index(key_action)
+        } else {
+            self.config
+                .find_key_action_index(base_action)
+                .or_else(|| self.config.find_key_action_index(key_action))
+        };
+        if let Some(i) = action_idx {
             self.state |= 1 << i;
             return true;
         }
@@ -89,8 +114,15 @@ impl Combo {
 
     /// Update the combo's state when a key is released
     /// When the combo is fully released from triggered state, this function returns true
-    pub(crate) fn update_released(&mut self, key_action: &KeyAction) -> bool {
-        if let Some(i) = self.config.find_key_action_index(key_action) {
+    pub(crate) fn update_released(&mut self, key_action: &KeyAction, base_action: &KeyAction) -> bool {
+        let action_idx = if self.config.layer.is_some() {
+            self.config.find_key_action_index(key_action)
+        } else {
+            self.config
+                .find_key_action_index(base_action)
+                .or_else(|| self.config.find_key_action_index(key_action))
+        };
+        if let Some(i) = action_idx {
             self.state &= !(1 << i);
         }
 
@@ -103,6 +135,15 @@ impl Combo {
             self.reset();
         }
         false
+    }
+
+    /// Returns true if this combo contains the given key action on its active or base layer.
+    pub(crate) fn matches_key(&self, key_action: &KeyAction, base_action: &KeyAction) -> bool {
+        if self.config.layer.is_some() {
+            self.config.contains(key_action)
+        } else {
+            self.config.contains(base_action) || self.config.contains(key_action)
+        }
     }
 
     /// Mark the combo as done, if all actions are satisfied
@@ -169,8 +210,8 @@ mod tests {
         let a = hid(HidKeyCode::A);
         let b = hid(HidKeyCode::B);
 
-        assert!(combo.update(&a, KeyboardEvent::key(0, 0, true), 0));
-        assert!(combo.update(&b, KeyboardEvent::key(0, 1, true), 0));
+        assert!(combo.update(&a, &a, KeyboardEvent::key(0, 0, true), 0));
+        assert!(combo.update(&b, &b, KeyboardEvent::key(0, 1, true), 0));
         assert!(combo.is_all_pressed());
 
         let output = combo.trigger();
@@ -179,5 +220,33 @@ mod tests {
             combo.is_triggered(),
             "a KC_NO combo must trigger so the release path consumes the releases"
         );
+    }
+
+    #[test]
+    fn global_combo_triggers_with_base_action_on_different_layer() {
+        let mut combo = Combo::new(ComboConfig::new(
+            [hid(HidKeyCode::F), hid(HidKeyCode::J)],
+            hid(HidKeyCode::Space),
+            None,
+        ));
+        let f = hid(HidKeyCode::F);
+        let j = hid(HidKeyCode::J);
+        let lctrl = hid(HidKeyCode::LCtrl);
+        let mouse1 = hid(HidKeyCode::MouseBtn1);
+
+        // On layer 1, physical keys F and J map to LCtrl and MouseBtn1
+        assert!(combo.update(&lctrl, &f, KeyboardEvent::key(1, 4, true), 1));
+        assert!(combo.update(&mouse1, &j, KeyboardEvent::key(1, 10, true), 1));
+        assert!(combo.is_all_pressed());
+
+        let output = combo.trigger();
+        assert_eq!(output, hid(HidKeyCode::Space));
+        assert!(combo.is_triggered());
+
+        // Releasing F on layer 1
+        assert!(!combo.update_released(&lctrl, &f));
+        // Releasing J on layer 1 fully releases the combo
+        assert!(combo.update_released(&mouse1, &j));
+        assert!(!combo.is_triggered());
     }
 }

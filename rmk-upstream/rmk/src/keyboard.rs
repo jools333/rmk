@@ -364,11 +364,13 @@ impl<'a> Keyboard<'a> {
                     .held_buffer
                     .remove_if(|k| k.event.pos == key.event.pos && k.state == KeyState::WaitingCombo)
                 {
+                    let default_layer = self.keymap.get_default_layer();
+                    let base_action = self.keymap.get_action_at(key.event.pos, default_layer as usize);
                     self.keymap.with_combos_mut(|combos| {
                         combos
                             .iter_mut()
                             .flatten()
-                            .filter(|combo| !combo.is_triggered() && combo.config.contains(&key.action))
+                            .filter(|combo| !combo.is_triggered() && combo.matches_key(&key.action, &base_action))
                             .for_each(Combo::reset);
                     });
                     self.process_key_action(&key.action, key.event, false, key.press_time)
@@ -1024,6 +1026,8 @@ impl<'a> Keyboard<'a> {
     /// - `event`: The keyboard event. When pressing (interrupting), trigger any delayed combo.
     ///   When releasing, only trigger combos that contain the key_action.
     async fn trigger_delayed_combo(&mut self, key_action: &KeyAction, event: KeyboardEvent) {
+        let default_layer = self.keymap.get_default_layer();
+        let base_action = self.keymap.get_action_at(event.pos, default_layer as usize);
         // First, find the delayed combo and trigger it
         let triggered_combo = self.keymap.with_combos_mut(|combos| {
             combos
@@ -1033,7 +1037,7 @@ impl<'a> Keyboard<'a> {
                     if c.is_all_pressed() && !c.is_triggered() {
                         // When a key is pressed (interrupting a combo wait), trigger any delayed combo.
                         // When releasing a key, only trigger combos that contain the key_action.
-                        if event.pressed || c.config.contains(key_action) {
+                        if event.pressed || c.matches_key(key_action, &base_action) {
                             // All keys are pressed but the combo is not triggered, trigger it
                             return Some((c.size(), c));
                         }
@@ -1052,7 +1056,8 @@ impl<'a> Keyboard<'a> {
                     return true;
                 }
                 // Check if this key is part of the triggered combo
-                !combo_actions.contains(&item.action)
+                let item_base_action = self.keymap.get_action_at(item.event.pos, default_layer as usize);
+                !combo_actions.contains(&item.action) && !combo_actions.contains(&item_base_action)
             });
 
             let mut new_event = event;
@@ -1091,6 +1096,8 @@ impl<'a> Keyboard<'a> {
         event_time: Instant,
     ) -> (Option<KeyAction>, bool) {
         let current_layer = self.keymap.get_activated_layer();
+        let default_layer = self.keymap.get_default_layer();
+        let base_action = self.keymap.get_action_at(event.pos, default_layer as usize);
 
         // First, when releasing a key, check whether there's untriggered combo, if so, triggerer it first
         if !event.pressed {
@@ -1107,7 +1114,7 @@ impl<'a> Keyboard<'a> {
             let reasserted = self.keymap.with_combos_mut(|combos| {
                 let mut any = false;
                 for combo in combos.iter_mut().filter_map(|c| c.as_mut()) {
-                    if combo.reassert_if_triggered(key_action) {
+                    if combo.reassert_if_triggered(key_action, &base_action) {
                         any = true;
                     }
                 }
@@ -1134,7 +1141,7 @@ impl<'a> Keyboard<'a> {
                     .iter_mut()
                     .filter_map(|c| c.as_mut())
                     .map(|c| {
-                        if c.update(key_action, event, current_layer) {
+                        if c.update(key_action, &base_action, event, current_layer) {
                             info!("Updated combo: {:?}", c);
                             c.size()
                         } else {
@@ -1171,9 +1178,13 @@ impl<'a> Keyboard<'a> {
 
             if let Some((next_action, triggered_actions)) = triggered {
                 debug!("[Combo] {:?} triggered", next_action);
-                self.held_buffer
-                    .keys
-                    .retain(|item| item.state != KeyState::WaitingCombo || !triggered_actions.contains(&item.action));
+                self.held_buffer.keys.retain(|item| {
+                    if item.state != KeyState::WaitingCombo {
+                        return true;
+                    }
+                    let item_base_action = self.keymap.get_action_at(item.event.pos, default_layer as usize);
+                    !triggered_actions.contains(&item.action) && !triggered_actions.contains(&item_base_action)
+                });
                 self.reset_shadowed_combos(&triggered_actions);
                 return (Some(next_action), true);
             }
@@ -1192,13 +1203,13 @@ impl<'a> Keyboard<'a> {
 
                 self.keymap.with_combos_mut(|combos| {
                     for combo in combos.iter_mut().filter_map(|c| c.as_mut()) {
-                        if combo.config.contains(key_action) {
+                        if combo.matches_key(key_action, &base_action) {
                             // Releasing a combo key in triggered combo
                             releasing_triggered_combo |= combo.is_triggered();
                             info!("[Combo] releasing: {:?}", combo);
 
                             // Release the combo key, check whether the combo is fully released
-                            if combo.update_released(key_action) {
+                            if combo.update_released(key_action, &base_action) {
                                 debug!("[Combo] {:?} is released", combo.config.output);
                                 let _ = combo_outputs.push(combo.config.output);
                             }
