@@ -125,10 +125,14 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     // 3. Макросы:
     // Macro 0: "->" (тонкая стрелка)
     // Macro 1: "=>" (толстая стрелка)
+    // Macro 2: "gt" (Vim переключение вкладки вперед)
+    // Macro 3: "gT" (Vim переключение вкладки назад)
     let macro0 = rmk::keyboard_macros::to_macro_sequence("->");
     let macro1 = rmk::keyboard_macros::to_macro_sequence("=>");
+    let macro2 = rmk::keyboard_macros::to_macro_sequence("gt");
+    let macro3 = rmk::keyboard_macros::to_macro_sequence("gT");
     behavior_config.keyboard_macros = KeyboardMacrosConfig::new(
-        rmk::keyboard_macros::define_macro_sequences(&[macro0, macro1]),
+        rmk::keyboard_macros::define_macro_sequences(&[macro0, macro1, macro2, macro3]),
     );
 
     // 4. Auto Mouse Layer:
