@@ -67,6 +67,12 @@ impl<'a> VialService<'a> {
                     report.input_data[1] = 0x02;
                     report.input_data[2] = 0; // Success
                 }
+                // 0x03: Get Active Layer -> [0x53, 0x03]
+                0x03 => {
+                    report.input_data[0] = 0x53;
+                    report.input_data[1] = 0x03;
+                    report.input_data[2] = self.ctx.active_layer();
+                }
                 _ => {
                     report.input_data[0] = 0xFF;
                 }
