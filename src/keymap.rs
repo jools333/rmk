@@ -27,7 +27,7 @@ pub fn get_default_keymap() -> [[[KeyAction; COL]; ROW]; NUM_LAYER] {
             [k!(Tab),   k!(Q), lt!(7, W), k!(E),     k!(R),                           k!(T),   k!(LeftBracket),                 k!(P),         k!(O),     k!(I),     k!(U), k!(Y)],
             [wm!(C, ModifierCombination::LCTRL), k!(A), k!(S), mt!(D, ModifierCombination::LALT), mt!(F, ModifierCombination::LSHIFT), mt!(G, ModifierCombination::LCTRL), k!(Quote), k!(Semicolon), k!(L), mt!(K, ModifierCombination::LALT), mt!(J, ModifierCombination::RSHIFT), mt!(H, ModifierCombination::RCTRL)],
             [wm!(V, ModifierCombination::LCTRL), k!(Z), k!(X), k!(C), k!(V), k!(B), k!(Escape), k!(Slash), k!(Dot), k!(Comma), k!(M), k!(N)],
-            [a!(No), mt!(Space, ModifierCombination::LGUI), a!(No), mt!(Delete, ModifierCombination::LGUI), lt!(2, Delete), a!(No), a!(No), mt!(Enter, ModifierCombination::RGUI), a!(No), lt!(3, Backspace), a!(No), a!(No)],
+            [a!(No), mt!(Space, ModifierCombination::LGUI), a!(No), to!(1), lt!(2, Delete), a!(No), a!(No), mt!(Enter, ModifierCombination::RGUI), a!(No), lt!(3, Backspace), a!(No), a!(No)],
         ],
 
         // =========================================================================

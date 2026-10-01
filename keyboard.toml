@@ -3,20 +3,12 @@ dongle_profiles = 2
 split_central_sleep_timeout_seconds = 180
 combo_max_num = 20
 combo_max_length = 4
-auto_mouse_layer_max_num = 1
+auto_mouse_layer_max_num = 0
 
 [event.action]
 channel_size = 16
 pubs = 1
 subs = 2
-
-[[behavior.auto_mouse_layer]]
-target_layer = 1
-threshold = 4
-timeout = "0ms"
-deactivate_on_key = false
-reset_timeout_on_key = false
-blocked_layers = [5]
 
 [keyboard]
 name = "Charybdis Mini"
