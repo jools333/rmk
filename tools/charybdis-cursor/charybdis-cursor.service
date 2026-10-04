@@ -1,5 +1,5 @@
 [Unit]
-Description=Charybdis Mini Host Layer Cursor Indicator
+Description=Charybdis Mini Host Layer Indicator
 PartOf=graphical-session.target
 After=graphical-session.target
 

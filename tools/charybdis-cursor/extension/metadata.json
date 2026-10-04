@@ -1,7 +1,0 @@
-{
-  "name": "Charybdis Mouse Layer Indicator",
-  "description": "Instant (0ms) visual cursor indicator for Charybdis Mini Mouse Layer (Layer 1)",
-  "uuid": "charybdis-layer-indicator@local",
-  "version": 1,
-  "shell-version": ["45", "46", "47", "48", "49", "50", "50.1"]
-}

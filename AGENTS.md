@@ -28,7 +28,7 @@ This repository contains pure Rust firmware replacing ZMK on a 4-node wireless s
 - **Auto-Rotation & Hotkey Switching**: Keyboard searches for the active dongle with a 4-second timeout, automatically rotating between bonded dongles. Manual switching via `User8` / `User9` keys on Layer 8.
 - **Trackball Integration**: PMW3610 optical sensor with 800 CPI, `swap_xy = true`, `invert_x = true`, `invert_y = true`. Features Leetmouse/RawAccel dynamic acceleration (`base_sens = 0.2`, `accel = 1.2`, `sens_cap = 12.0`, carry buffer) for sub-pixel precision without a sniper button, physics-based Inertial/Kinetic Scroll (`friction = 0.95`, ease-out tail, touch-braking, 12ms tick). Auto-Mouse Layer is disabled.
 - **Exact Layout & Behaviors**: 9 layers, 13 combos, 4 macros (`->`, `=>`, `gt`, `gT`), home-row mods, global cross-layer combos with auto-return to Layer 0 (`switch_to_default_layer = true`), USB HID boot protocol support for BIOS/UEFI.
-- **Host Layer Cursor Indicator (`tools/charybdis-cursor/`)**: Host utility for Ubuntu (GNOME / Wayland) querying active layer via Vial command `0x53 0x03`. When Layer 1 (Mouse) is active, cursor dynamically switches to green-tinted theme (`Yaru-Green`) and grows by +15% (e.g. 24px -> 28px). Automatically reverts to default on all other layers or disconnect. Managed as a systemd user service.
+- **Host Layer Indicator (`tools/charybdis-cursor/`)**: Host utility for Ubuntu (GNOME / Wayland) querying active layer via Vial command `0x53 0x03`. When Layer 1 (Mouse) is active, the top panel, date/clock, and workspace pills (Space Bar) instantly transition to an emerald-green theme (`#2ed573`). Automatically reverts to default on all other layers or disconnect. Managed as a systemd user service.
 
 ---
 
@@ -61,7 +61,7 @@ charybdis-rmk/
 │   ├── macros.rs               # Text macros (arrow, fat_arrow)
 │   └── pointing_processor_controller.rs # Trackball layer hooks (sniper, scroll)
 ├── tools/
-│   └── charybdis-cursor/       # Linux host cursor indicator (green tint & +15% size on Layer 1)
+│   └── charybdis-cursor/       # Linux host indicator (emerald panel, clock & workspace pills on Layer 1)
 │       ├── charybdis_cursor.py # Daemon and CLI tool
 │       ├── charybdis-cursor.service # Systemd user unit template
 │       └── install.sh          # One-click installation script
