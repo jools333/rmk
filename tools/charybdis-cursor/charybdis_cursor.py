@@ -35,25 +35,27 @@ VIAL_USAGE_SIGNATURE = b"\x06\x60\xff\x09\x61"  # Usage Page 0xFF60, Usage 0x61
 SPACE_BAR_SCHEMA_DIR = os.path.expanduser("~/.local/share/gnome-shell/extensions/space-bar@luchrioh/schemas")
 SPACE_BAR_SCHEMA_ID = "org.gnome.shell.extensions.space-bar.appearance"
 
-# Elegant green styling for the top panel, clock, and workspace pills
+# Elegant muted green styling for the top panel, clock, and workspace pills
 GREEN_PANEL_CSS = """
 #panel {
-    background-color: rgba(18, 48, 28, 0.96) !important;
-    border-bottom: 2px solid #2ed573 !important;
-    box-shadow: 0 2px 12px rgba(46, 213, 115, 0.45) !important;
-    transition-duration: 120ms;
+    background-color: #172b1d !important;
+    border: none !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
 }
 .clock, .clock-display {
-    color: #2ed573 !important;
-    font-weight: bold !important;
+    color: #58b383 !important;
 }
 .space-bar-workspace-label.active {
-    background-color: rgba(46, 213, 115, 0.85) !important;
+    background-color: rgba(72, 169, 118, 0.4) !important;
     color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(46, 213, 115, 0.6) !important;
+    box-shadow: none !important;
 }
 .space-bar-workspace-label.inactive {
-    color: rgba(160, 240, 180, 0.9) !important;
+    color: rgba(185, 220, 198, 0.85) !important;
+}
+.space-bar-workspace-label.inactive.empty {
+    color: rgba(185, 220, 198, 0.45) !important;
 }
 """
 
