@@ -1,0 +1,16 @@
+[Unit]
+Description=Charybdis Mini Host Layer Cursor Indicator
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 %h/Distr/rmk/tools/charybdis-cursor/charybdis_cursor.py --daemon
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical-session.target
