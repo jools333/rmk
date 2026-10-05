@@ -136,15 +136,25 @@ class PanelLayerIndicator:
 
 
 def query_active_layer(fd: int) -> int | None:
-    """Sends [0x53, 0x03] to query active layer directly from RMK Vial service."""
+    """Sends [0x53, 0x03] to query active layer directly from RMK Vial service.
+    
+    Returns:
+        0..8: active keyboard layer
+        -1: dongle is online, but keyboard is offline/asleep over BLE (0xFF response)
+        None: I/O error or physical USB disconnect
+    """
     req = bytearray(32)
     req[0] = 0x53  # Vial layer stats command
     req[1] = 0x03  # Subcommand 0x03: Get Active Layer
     try:
         os.write(fd, req)
         resp = os.read(fd, 32)
-        if len(resp) >= 3 and resp[0] == 0x53 and resp[1] == 0x03:
-            return resp[2]
+        if len(resp) >= 3:
+            if resp[0] == 0x53 and resp[1] == 0x03:
+                return resp[2]
+            elif resp[0] == 0xFF:
+                # Dongle answered: keyboard BLE link is down / disconnected
+                return -1
     except (OSError, IOError):
         pass
     return None
@@ -196,6 +206,13 @@ def run_daemon():
             state["dev"] = None
             state["last_layer"] = None
             indicator.deactivate()
+            return True
+
+        # Keyboard link is offline/asleep (-1)
+        if layer == -1:
+            if state["last_layer"] != -1:
+                indicator.deactivate()
+                state["last_layer"] = -1
             return True
 
         # 3. Handle transition
