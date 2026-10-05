@@ -1,109 +1,176 @@
 diff --git a/rmk-upstream/rmk/src/ble/mod.rs b/rmk-upstream/rmk/src/ble/mod.rs
-index 9523d83..e4c6802 100644
+index e4c6802..64368fd 100644
 --- a/rmk-upstream/rmk/src/ble/mod.rs
 +++ b/rmk-upstream/rmk/src/ble/mod.rs
-@@ -282,6 +282,9 @@ async fn run_ble_keyboard<
-     let profile_manager = &mut profile_manager;
- 
-     let connection_loop = async {
-+        #[cfg(feature = "dongle")]
-+        let mut dongle_rotation_count: u8 = 0;
-+
-         loop {
-             // On a dongle slot, advertise directed to the bonded dongle or
-             // as a seeking broadcast; on the normal profiles, plain HID.
-@@ -299,13 +302,16 @@ async fn run_ble_keyboard<
-             #[cfg(not(feature = "dongle"))]
-             let adv = Adv::Host { name: product_name };
- 
--            // Determine advertising duration: alternate quickly (4s) between bonded dongles if multiple exist
-+            // Determine advertising duration: alternate quickly between dongles if multiple exist
-             #[cfg(feature = "dongle")]
-             let adv_duration = if is_dongle
--                && matches!(adv, Adv::Directed(_))
--                && profile_manager.next_bonded_dongle_slot(crate::state::current_profile()).is_some()
-+                && profile_manager.next_dongle_slot(crate::state::current_profile()).is_some()
-             {
--                Duration::from_secs(4)
-+                if matches!(adv, Adv::DongleSeeking) {
-+                    Duration::from_secs(6)
-+                } else {
-+                    Duration::from_secs(4)
-+                }
-             } else {
-                 Duration::from_secs(300)
-             };
-@@ -325,6 +331,10 @@ async fn run_ble_keyboard<
-             {
-                 Either::First(Ok(conn)) => {
-                     info!("[adv] connection established");
-+                    #[cfg(feature = "dongle")]
-+                    {
-+                        dongle_rotation_count = 0;
-+                    }
-                     if let Err(e) = conn.raw().set_bondable(true) {
-                         error!("Set bondable error: {:?}", e);
+@@ -340,8 +340,27 @@ async fn run_ble_keyboard<
                      }
-@@ -369,10 +379,15 @@ async fn run_ble_keyboard<
-                 Either::First(Err(BleHostError::BleHost(Error::Timeout))) => {
-                     #[cfg(feature = "dongle")]
-                     if is_dongle {
--                        if let Some(next_slot) = profile_manager.next_bonded_dongle_slot(crate::state::current_profile()) {
--                            info!("[dongle] rotation: switching directed adv to dongle slot {}", next_slot);
--                            profile_manager.switch_profile(next_slot).await;
--                            continue;
-+                        if let Some(next_slot) = profile_manager.next_dongle_slot(crate::state::current_profile()) {
-+                            const MAX_DONGLE_ROTATIONS: u8 = 10;
-+                            if dongle_rotation_count < MAX_DONGLE_ROTATIONS {
-+                                dongle_rotation_count += 1;
-+                                info!("[dongle] rotation ({}): switching adv to dongle slot {}", dongle_rotation_count, next_slot);
-+                                profile_manager.switch_profile(next_slot).await;
+                     // Do NOT emit BleState::Connected here. gatt_events_task emits
+                     // Connected when it sees GattConnectionEvent::Encrypted.
+-                    let active_bond_info = profile_manager.active_bond_info();
++                    let mut active_bond_info = profile_manager.active_bond_info();
+                     // Check the bond info after the connection is just created.
++                    #[cfg(feature = "dongle")]
++                    if is_dongle {
++                        let peer_ident = conn.raw().peer_identity();
++                        let matches_active = active_bond_info
++                            .as_ref()
++                            .map_or(false, |b| b.info.identity.match_identity(&peer_ident));
++                        if !matches_active {
++                            if let Some(matching_slot) = profile_manager.find_bonded_dongle_slot(&peer_ident) {
++                                info!("[dongle] connected peer matches bonded dongle slot {}, switching profile", matching_slot);
++                                profile_manager.switch_profile(matching_slot).await;
++                                active_bond_info = profile_manager.active_bond_info();
++                            } else if active_bond_info.is_some() {
++                                warn!("[ble] connected peer doesn't match any bonded dongle, disconnecting");
++                                disconnect(&conn).await;
 +                                continue;
 +                            }
-+                            dongle_rotation_count = 0;
-                         }
-                     }
-                     warn!("Advertising timeout, sleep and wait for any key");
-@@ -397,7 +412,12 @@ async fn run_ble_keyboard<
-                     error!("Advertise error: {:?}", e);
-                     Timer::after_millis(200).await;
-                 }
--                Either::Second(()) => {}
-+                Either::Second(()) => {
-+                    #[cfg(feature = "dongle")]
-+                    {
-+                        dongle_rotation_count = 0;
++                        }
 +                    }
-+                }
-             };
- 
-             // Skip the Inactive transition if we never moved off Advertising
++                    #[cfg(not(feature = "dongle"))]
+                     if let Some(bond) = &active_bond_info
+                         && !bond.info.identity.match_identity(&conn.raw().peer_identity())
+                     {
+@@ -351,12 +370,19 @@ async fn run_ble_keyboard<
+                     }
+                     // When connecting to BLE host, check the connected peer is not a dongle.
+                     #[cfg(feature = "dongle")]
+-                    if !crate::ble::profile::is_dongle_profile(crate::state::current_profile())
+-                        && profile_manager.is_bonded_dongle(&conn.raw().peer_identity())
+-                    {
+-                        warn!("[ble] the bonded dongle connected on a host BLE profile, disconnecting");
+-                        disconnect(&conn).await;
+-                        continue;
++                    if !crate::ble::profile::is_dongle_profile(crate::state::current_profile()) {
++                        if let Some(bond) = &active_bond_info
++                            && !bond.info.identity.match_identity(&conn.raw().peer_identity())
++                        {
++                            warn!("[ble] connected peer doesn't match the active profile, disconnecting");
++                            disconnect(&conn).await;
++                            continue;
++                        }
++                        if profile_manager.is_bonded_dongle(&conn.raw().peer_identity()) {
++                            warn!("[ble] the bonded dongle connected on a host BLE profile, disconnecting");
++                            disconnect(&conn).await;
++                            continue;
++                        }
+                     }
+                     if let Either::Second(_) = select(
+                         serve_keyboard_connection(
 diff --git a/rmk-upstream/rmk/src/ble/profile.rs b/rmk-upstream/rmk/src/ble/profile.rs
-index 85830f7..7ffc6b1 100644
+index 7ffc6b1..7095d7c 100644
 --- a/rmk-upstream/rmk/src/ble/profile.rs
 +++ b/rmk-upstream/rmk/src/ble/profile.rs
-@@ -232,6 +232,24 @@ where
-         slots
+@@ -220,6 +220,21 @@ where
+         })
      }
  
-+    /// Return the next dongle slot to alternate with during auto-reconnect or searching.
-+    /// Cycles across all configured dongle slots (DONGLE_PROFILE .. DONGLE_PROFILE + NUM_DONGLE_PROFILES)
-+    /// so that unbonded dongles (such as Dongle 2) get a chance to pair automatically via Adv::DongleSeeking.
++    /// Check if the `identity` matches one of the bonded dongles, returning its slot number.
 +    #[cfg(feature = "dongle")]
-+    pub(crate) fn next_dongle_slot(&self, current_slot: u8) -> Option<u8> {
-+        if NUM_DONGLE_PROFILES <= 1 {
-+            return None;
-+        }
-+        let start = DONGLE_PROFILE;
-+        let end = start + NUM_DONGLE_PROFILES as u8;
-+        if current_slot >= start && current_slot < end {
-+            let next = start + ((current_slot - start + 1) % NUM_DONGLE_PROFILES as u8);
-+            Some(next)
-+        } else {
-+            Some(start)
-+        }
++    pub(crate) fn find_bonded_dongle_slot(&self, identity: &Identity) -> Option<u8> {
++        self.bonded_devices.iter().find_map(|bond_info| {
++            if !bond_info.removed
++                && is_dongle_profile(bond_info.slot_num)
++                && bond_info.info.identity.match_identity(identity)
++            {
++                Some(bond_info.slot_num)
++            } else {
++                None
++            }
++        })
 +    }
 +
-     /// Return the next bonded dongle slot to alternate with during auto-reconnect, if any.
+     /// Return the list of slot numbers that currently have a valid (non-removed) dongle bond.
      #[cfg(feature = "dongle")]
-     pub(crate) fn next_bonded_dongle_slot(&self, current_slot: u8) -> Option<u8> {
+     pub(crate) fn bonded_dongle_slots(&self) -> heapless::Vec<u8, 8> {
+@@ -281,12 +296,27 @@ where
+             }
+         }
+ 
++        let active_slot = current_profile();
+         if let Some(info) = self.active_bond_info() {
+             debug!("Add bond info of profile {}: {:?}", info.slot_num, info);
+             if let Err(e) = self.stack.add_bond_information(info.info) {
+                 debug!("Add bond info error: {:?}", e);
+             }
+         }
++
++        #[cfg(feature = "dongle")]
++        if is_dongle_profile(active_slot) {
++            // Also load all other bonded dongles into the stack so any bonded dongle
++            // can authenticate immediately without getting rejected or wiping its bond.
++            for info in self.bonded_devices.iter() {
++                if !info.removed && is_dongle_profile(info.slot_num) && info.slot_num != active_slot {
++                    debug!("Add additional dongle bond info of profile {}: {:?}", info.slot_num, info);
++                    if let Err(e) = self.stack.add_bond_information(info.info.clone()) {
++                        debug!("Add dongle bond info error: {:?}", e);
++                    }
++                }
++            }
++        }
+     }
+ 
+     /// Add/update bonding information
+diff --git a/rmk-upstream/rmk/src/dongle/mod.rs b/rmk-upstream/rmk/src/dongle/mod.rs
+index e12dc4d..1c7c621 100644
+--- a/rmk-upstream/rmk/src/dongle/mod.rs
++++ b/rmk-upstream/rmk/src/dongle/mod.rs
+@@ -176,6 +176,7 @@ where
+             router: self.router,
+             profiles: ProfileManager::new(stack),
+             state: Cell::new(DongleState::default()),
++            auth_failures: Cell::new(0),
+         };
+ 
+         join(crate::ble::ble_task(stack.runner(), &scan), central.run()).await;
+@@ -192,6 +193,7 @@ struct DongleCentral<'b, 's: 'b, C: Controller + ControllerCmdAsync<LeSetPhy>> {
+     profiles: ProfileManager<'b, 's, C, DefaultPacketPool, 1>,
+     /// The last state published, so a path that ends where it began says nothing.
+     state: Cell<DongleState>,
++    auth_failures: Cell<u8>,
+ }
+ 
+ impl<'b, 's: 'b, C> DongleCentral<'b, 's, C>
+@@ -385,6 +387,7 @@ where
+                 // Save the new bond — also when the bonded keyboard cleared its side
+                 // and re-paired, otherwise we keep an old key nothing accepts anymore.
+                 Ok(ConnectionEvent::PairingComplete { bond: Some(bond), .. }) => {
++                    self.auth_failures.set(0);
+                     self.profiles
+                         .add_profile_info(ProfileInfo {
+                             slot_num: BOND_SLOT,
+@@ -395,12 +398,12 @@ where
+                         .await;
+                     return true;
+                 }
+-                Ok(ConnectionEvent::Encrypted { .. } | ConnectionEvent::PairingComplete { .. }) => return true,
++                Ok(ConnectionEvent::Encrypted { .. } | ConnectionEvent::PairingComplete { .. }) => {
++                    self.auth_failures.set(0);
++                    return true;
++                }
+                 Ok(ConnectionEvent::PairingFailed(e)) => {
+                     warn!("[dongle] pairing failed: {:?}", e);
+-                    if peer == Peer::Bonded {
+-                        self.profiles.clear_bond(BOND_SLOT).await;
+-                    }
+                     return false;
+                 }
+                 // A keyboard that cleared its side rejects our key at the link layer,
+@@ -408,8 +411,15 @@ where
+                 // key is dead either way: drop it, and the next loop opens a pairing window.
+                 Ok(ConnectionEvent::Disconnected { reason }) => {
+                     if peer == Peer::Bonded && reason == Status::AUTHENTICATION_FAILURE {
+-                        warn!("[dongle] bonded keyboard refused our key, dropping the bond");
+-                        self.profiles.clear_bond(BOND_SLOT).await;
++                        let count = self.auth_failures.get() + 1;
++                        self.auth_failures.set(count);
++                        if count >= 3 {
++                            warn!("[dongle] bonded keyboard refused our key {} times, dropping the bond", count);
++                            self.profiles.clear_bond(BOND_SLOT).await;
++                            self.auth_failures.set(0);
++                        } else {
++                            warn!("[dongle] bonded keyboard refused our key (failure {}/3), retrying", count);
++                        }
+                     }
+                     return false;
+                 }

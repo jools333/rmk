@@ -176,6 +176,7 @@ where
             router: self.router,
             profiles: ProfileManager::new(stack),
             state: Cell::new(DongleState::default()),
+            auth_failures: Cell::new(0),
         };
 
         join(crate::ble::ble_task(stack.runner(), &scan), central.run()).await;
@@ -192,6 +193,7 @@ struct DongleCentral<'b, 's: 'b, C: Controller + ControllerCmdAsync<LeSetPhy>> {
     profiles: ProfileManager<'b, 's, C, DefaultPacketPool, 1>,
     /// The last state published, so a path that ends where it began says nothing.
     state: Cell<DongleState>,
+    auth_failures: Cell<u8>,
 }
 
 impl<'b, 's: 'b, C> DongleCentral<'b, 's, C>
@@ -385,6 +387,7 @@ where
                 // Save the new bond — also when the bonded keyboard cleared its side
                 // and re-paired, otherwise we keep an old key nothing accepts anymore.
                 Ok(ConnectionEvent::PairingComplete { bond: Some(bond), .. }) => {
+                    self.auth_failures.set(0);
                     self.profiles
                         .add_profile_info(ProfileInfo {
                             slot_num: BOND_SLOT,
@@ -395,12 +398,12 @@ where
                         .await;
                     return true;
                 }
-                Ok(ConnectionEvent::Encrypted { .. } | ConnectionEvent::PairingComplete { .. }) => return true,
+                Ok(ConnectionEvent::Encrypted { .. } | ConnectionEvent::PairingComplete { .. }) => {
+                    self.auth_failures.set(0);
+                    return true;
+                }
                 Ok(ConnectionEvent::PairingFailed(e)) => {
                     warn!("[dongle] pairing failed: {:?}", e);
-                    if peer == Peer::Bonded {
-                        self.profiles.clear_bond(BOND_SLOT).await;
-                    }
                     return false;
                 }
                 // A keyboard that cleared its side rejects our key at the link layer,
@@ -408,8 +411,15 @@ where
                 // key is dead either way: drop it, and the next loop opens a pairing window.
                 Ok(ConnectionEvent::Disconnected { reason }) => {
                     if peer == Peer::Bonded && reason == Status::AUTHENTICATION_FAILURE {
-                        warn!("[dongle] bonded keyboard refused our key, dropping the bond");
-                        self.profiles.clear_bond(BOND_SLOT).await;
+                        let count = self.auth_failures.get() + 1;
+                        self.auth_failures.set(count);
+                        if count >= 3 {
+                            warn!("[dongle] bonded keyboard refused our key {} times, dropping the bond", count);
+                            self.profiles.clear_bond(BOND_SLOT).await;
+                            self.auth_failures.set(0);
+                        } else {
+                            warn!("[dongle] bonded keyboard refused our key (failure {}/3), retrying", count);
+                        }
                     }
                     return false;
                 }

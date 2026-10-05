@@ -220,6 +220,21 @@ where
         })
     }
 
+    /// Check if the `identity` matches one of the bonded dongles, returning its slot number.
+    #[cfg(feature = "dongle")]
+    pub(crate) fn find_bonded_dongle_slot(&self, identity: &Identity) -> Option<u8> {
+        self.bonded_devices.iter().find_map(|bond_info| {
+            if !bond_info.removed
+                && is_dongle_profile(bond_info.slot_num)
+                && bond_info.info.identity.match_identity(identity)
+            {
+                Some(bond_info.slot_num)
+            } else {
+                None
+            }
+        })
+    }
+
     /// Return the list of slot numbers that currently have a valid (non-removed) dongle bond.
     #[cfg(feature = "dongle")]
     pub(crate) fn bonded_dongle_slots(&self) -> heapless::Vec<u8, 8> {
@@ -281,10 +296,25 @@ where
             }
         }
 
+        let active_slot = current_profile();
         if let Some(info) = self.active_bond_info() {
             debug!("Add bond info of profile {}: {:?}", info.slot_num, info);
             if let Err(e) = self.stack.add_bond_information(info.info) {
                 debug!("Add bond info error: {:?}", e);
+            }
+        }
+
+        #[cfg(feature = "dongle")]
+        if is_dongle_profile(active_slot) {
+            // Also load all other bonded dongles into the stack so any bonded dongle
+            // can authenticate immediately without getting rejected or wiping its bond.
+            for info in self.bonded_devices.iter() {
+                if !info.removed && is_dongle_profile(info.slot_num) && info.slot_num != active_slot {
+                    debug!("Add additional dongle bond info of profile {}: {:?}", info.slot_num, info);
+                    if let Err(e) = self.stack.add_bond_information(info.info.clone()) {
+                        debug!("Add dongle bond info error: {:?}", e);
+                    }
+                }
             }
         }
     }

@@ -340,8 +340,27 @@ async fn run_ble_keyboard<
                     }
                     // Do NOT emit BleState::Connected here. gatt_events_task emits
                     // Connected when it sees GattConnectionEvent::Encrypted.
-                    let active_bond_info = profile_manager.active_bond_info();
+                    let mut active_bond_info = profile_manager.active_bond_info();
                     // Check the bond info after the connection is just created.
+                    #[cfg(feature = "dongle")]
+                    if is_dongle {
+                        let peer_ident = conn.raw().peer_identity();
+                        let matches_active = active_bond_info
+                            .as_ref()
+                            .map_or(false, |b| b.info.identity.match_identity(&peer_ident));
+                        if !matches_active {
+                            if let Some(matching_slot) = profile_manager.find_bonded_dongle_slot(&peer_ident) {
+                                info!("[dongle] connected peer matches bonded dongle slot {}, switching profile", matching_slot);
+                                profile_manager.switch_profile(matching_slot).await;
+                                active_bond_info = profile_manager.active_bond_info();
+                            } else if active_bond_info.is_some() {
+                                warn!("[ble] connected peer doesn't match any bonded dongle, disconnecting");
+                                disconnect(&conn).await;
+                                continue;
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "dongle"))]
                     if let Some(bond) = &active_bond_info
                         && !bond.info.identity.match_identity(&conn.raw().peer_identity())
                     {
@@ -351,12 +370,19 @@ async fn run_ble_keyboard<
                     }
                     // When connecting to BLE host, check the connected peer is not a dongle.
                     #[cfg(feature = "dongle")]
-                    if !crate::ble::profile::is_dongle_profile(crate::state::current_profile())
-                        && profile_manager.is_bonded_dongle(&conn.raw().peer_identity())
-                    {
-                        warn!("[ble] the bonded dongle connected on a host BLE profile, disconnecting");
-                        disconnect(&conn).await;
-                        continue;
+                    if !crate::ble::profile::is_dongle_profile(crate::state::current_profile()) {
+                        if let Some(bond) = &active_bond_info
+                            && !bond.info.identity.match_identity(&conn.raw().peer_identity())
+                        {
+                            warn!("[ble] connected peer doesn't match the active profile, disconnecting");
+                            disconnect(&conn).await;
+                            continue;
+                        }
+                        if profile_manager.is_bonded_dongle(&conn.raw().peer_identity()) {
+                            warn!("[ble] the bonded dongle connected on a host BLE profile, disconnecting");
+                            disconnect(&conn).await;
+                            continue;
+                        }
                     }
                     if let Either::Second(_) = select(
                         serve_keyboard_connection(
