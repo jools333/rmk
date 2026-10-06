@@ -287,15 +287,13 @@ async fn run_ble_keyboard<
 
         loop {
             // On a dongle slot, advertise directed to the bonded dongle or
-            // as a seeking broadcast; on the normal profiles, plain HID.
+            // On a dongle slot, advertise Adv::DongleSeeking so both bonded
+            // and unbonded dongles can discover and connect immediately; on host profiles, plain HID.
             #[cfg(feature = "dongle")]
             let is_dongle = crate::ble::profile::is_dongle_profile(crate::state::current_profile());
             #[cfg(feature = "dongle")]
             let adv = if is_dongle {
-                match profile_manager.active_bond_info() {
-                    Some(info) => Adv::Directed(info.info.identity.addr),
-                    None => Adv::DongleSeeking,
-                }
+                Adv::DongleSeeking
             } else {
                 Adv::Host { name: product_name }
             };
@@ -307,11 +305,7 @@ async fn run_ble_keyboard<
             let adv_duration = if is_dongle
                 && profile_manager.next_dongle_slot(crate::state::current_profile()).is_some()
             {
-                if matches!(adv, Adv::DongleSeeking) {
-                    Duration::from_secs(6)
-                } else {
-                    Duration::from_secs(4)
-                }
+                Duration::from_secs(6)
             } else {
                 Duration::from_secs(300)
             };
@@ -353,10 +347,21 @@ async fn run_ble_keyboard<
                                 info!("[dongle] connected peer matches bonded dongle slot {}, switching profile", matching_slot);
                                 profile_manager.switch_profile(matching_slot).await;
                                 active_bond_info = profile_manager.active_bond_info();
-                            } else if active_bond_info.is_some() {
-                                warn!("[ble] connected peer doesn't match any bonded dongle, disconnecting");
-                                disconnect(&conn).await;
-                                continue;
+                            } else {
+                                // Connected peer does not match any existing bonded dongle.
+                                // If the active profile is already bonded to a different dongle,
+                                // switch to an unbonded dongle slot if one exists, to avoid overwriting.
+                                if active_bond_info.is_some() {
+                                    if let Some(unbonded_slot) = profile_manager.first_unbonded_dongle_slot() {
+                                        info!("[dongle] new dongle connecting, switching to unbonded slot {}", unbonded_slot);
+                                        profile_manager.switch_profile(unbonded_slot).await;
+                                        active_bond_info = profile_manager.active_bond_info();
+                                    } else {
+                                        info!("[dongle] new/unbonded dongle connecting on slot {}, allowing re-pair", crate::state::current_profile());
+                                    }
+                                } else {
+                                    info!("[dongle] new dongle connecting on unbonded slot {}, allowing pair", crate::state::current_profile());
+                                }
                             }
                         }
                     }

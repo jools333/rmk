@@ -235,6 +235,19 @@ where
         })
     }
 
+    /// Return the first dongle slot that has no valid bond.
+    #[cfg(feature = "dongle")]
+    pub(crate) fn first_unbonded_dongle_slot(&self) -> Option<u8> {
+        let start = DONGLE_PROFILE;
+        let end = start + NUM_DONGLE_PROFILES as u8;
+        for slot in start..end {
+            if !self.bonded_devices.iter().any(|b| !b.removed && b.slot_num == slot) {
+                return Some(slot);
+            }
+        }
+        None
+    }
+
     /// Return the list of slot numbers that currently have a valid (non-removed) dongle bond.
     #[cfg(feature = "dongle")]
     pub(crate) fn bonded_dongle_slots(&self) -> heapless::Vec<u8, 8> {

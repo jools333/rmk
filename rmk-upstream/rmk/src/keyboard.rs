@@ -386,10 +386,13 @@ impl<'a> Keyboard<'a> {
 
     /// Process key changes at (row, col)
     pub async fn process_inner(&mut self, event: KeyboardEvent) {
-        // A User-key hold gesture needs 5s without any key event, so cancel it here.
+        // A User-key hold gesture needs 2s without a new key press, so cancel only if a new key is pressed.
+        // Key releases (e.g. releasing layer keys) must NOT cancel the hold gesture.
         #[cfg(feature = "_ble")]
         {
-            self.user_hold = None;
+            if event.pressed {
+                self.user_hold = None;
+            }
         }
 
         // Check for mode transitions (e.g., entering/exiting passkey entry)
@@ -1729,9 +1732,9 @@ impl<'a> Keyboard<'a> {
             use crate::ble::profile::BleProfileAction;
             use crate::channel::BLE_PROFILE_CHANNEL;
             if event.pressed {
-                // Start the 5s hold gesture for any user key. `fire_user_hold` decides
+                // Start the 2s hold gesture for any user key. `fire_user_hold` decides
                 // which ids actually do something, so the id list lives in one place.
-                self.user_hold = Some((Instant::now() + Duration::from_secs(5), id));
+                self.user_hold = Some((Instant::now() + Duration::from_secs(2), id));
             } else {
                 // A tap sends press and release back to back, so cancel what the press started.
                 self.user_hold = None;
