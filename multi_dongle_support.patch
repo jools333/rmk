@@ -1,8 +1,8 @@
 diff --git a/rmk-upstream/rmk/src/ble/mod.rs b/rmk-upstream/rmk/src/ble/mod.rs
-index e4c6802..64368fd 100644
+index e4c6802..c0d99fa 100644
 --- a/rmk-upstream/rmk/src/ble/mod.rs
 +++ b/rmk-upstream/rmk/src/ble/mod.rs
-@@ -340,8 +340,27 @@ async fn run_ble_keyboard<
+@@ -340,8 +340,38 @@ async fn run_ble_keyboard<
                      }
                      // Do NOT emit BleState::Connected here. gatt_events_task emits
                      // Connected when it sees GattConnectionEvent::Encrypted.
@@ -20,10 +20,21 @@ index e4c6802..64368fd 100644
 +                                info!("[dongle] connected peer matches bonded dongle slot {}, switching profile", matching_slot);
 +                                profile_manager.switch_profile(matching_slot).await;
 +                                active_bond_info = profile_manager.active_bond_info();
-+                            } else if active_bond_info.is_some() {
-+                                warn!("[ble] connected peer doesn't match any bonded dongle, disconnecting");
-+                                disconnect(&conn).await;
-+                                continue;
++                            } else {
++                                // Connected peer does not match any existing bonded dongle.
++                                // If the active profile is already bonded to a different dongle,
++                                // switch to an unbonded dongle slot if one exists, to avoid overwriting.
++                                if active_bond_info.is_some() {
++                                    if let Some(unbonded_slot) = profile_manager.first_unbonded_dongle_slot() {
++                                        info!("[dongle] new dongle connecting, switching to unbonded slot {}", unbonded_slot);
++                                        profile_manager.switch_profile(unbonded_slot).await;
++                                        active_bond_info = profile_manager.active_bond_info();
++                                    } else {
++                                        info!("[dongle] new/unbonded dongle connecting on slot {}, allowing re-pair", crate::state::current_profile());
++                                    }
++                                } else {
++                                    info!("[dongle] new dongle connecting on unbonded slot {}, allowing pair", crate::state::current_profile());
++                                }
 +                            }
 +                        }
 +                    }
@@ -31,7 +42,7 @@ index e4c6802..64368fd 100644
                      if let Some(bond) = &active_bond_info
                          && !bond.info.identity.match_identity(&conn.raw().peer_identity())
                      {
-@@ -351,12 +370,19 @@ async fn run_ble_keyboard<
+@@ -351,12 +381,19 @@ async fn run_ble_keyboard<
                      }
                      // When connecting to BLE host, check the connected peer is not a dongle.
                      #[cfg(feature = "dongle")]
@@ -61,7 +72,7 @@ diff --git a/rmk-upstream/rmk/src/ble/profile.rs b/rmk-upstream/rmk/src/ble/prof
 index 7ffc6b1..7095d7c 100644
 --- a/rmk-upstream/rmk/src/ble/profile.rs
 +++ b/rmk-upstream/rmk/src/ble/profile.rs
-@@ -220,6 +220,21 @@ where
+@@ -220,6 +220,34 @@ where
          })
      }
  
@@ -78,6 +89,19 @@ index 7ffc6b1..7095d7c 100644
 +                None
 +            }
 +        })
++    }
++
++    /// Return the first dongle slot that has no valid bond.
++    #[cfg(feature = "dongle")]
++    pub(crate) fn first_unbonded_dongle_slot(&self) -> Option<u8> {
++        let start = DONGLE_PROFILE;
++        let end = start + NUM_DONGLE_PROFILES as u8;
++        for slot in start..end {
++            if !self.bonded_devices.iter().any(|b| !b.removed && b.slot_num == slot) {
++                return Some(slot);
++            }
++        }
++        None
 +    }
 +
      /// Return the list of slot numbers that currently have a valid (non-removed) dongle bond.
