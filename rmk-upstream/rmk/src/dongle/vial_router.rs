@@ -4,7 +4,7 @@
 //! in both directions. The relay reads nothing but the first byte — and only to
 //! echo the request back as `Unhandled` when there is no keyboard to ask.
 
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use embassy_futures::select::{Either, select};
 use embassy_sync::channel::Channel;
@@ -33,6 +33,8 @@ pub struct DongleRouter {
     /// Raised when a link stops relaying: only a live link drains `to_keyboard`,
     /// so a waiting [`Self::forward_report`] has to give up.
     link_dropped: Signal<RawMutex, ()>,
+    /// Cached active keyboard layer pushed by `DongleEvent::Layer`.
+    active_layer: AtomicU8,
 }
 
 impl DongleRouter {
@@ -42,12 +44,18 @@ impl DongleRouter {
             to_host: Channel::new(),
             link_connected: AtomicBool::new(false),
             link_dropped: Signal::new(),
+            active_layer: AtomicU8::new(0),
         }
     }
 
     /// Whether a keyboard is connected and being relayed right now.
     pub fn is_connected(&self) -> bool {
         self.link_connected.load(Ordering::Relaxed)
+    }
+
+    /// Update cached active layer received from keyboard via `DongleEvent::Layer`.
+    pub(super) fn set_active_layer(&self, layer: u8) {
+        self.active_layer.store(layer, Ordering::Relaxed);
     }
 
     /// Called by the dongle task once it is relaying: open the host→keyboard path.
@@ -62,6 +70,7 @@ impl DongleRouter {
     /// drop the queue, so a keyboard connecting later can't replay a stale request.
     pub(super) fn link_down(&self) {
         self.link_connected.store(false, Ordering::Relaxed);
+        self.active_layer.store(0, Ordering::Relaxed);
         self.link_dropped.signal(());
         self.to_keyboard.clear();
     }
@@ -96,6 +105,22 @@ impl DongleRouter {
     /// Hand one request to the keyboard, or answer it here if there is no
     /// keyboard to hand it to.
     async fn forward_report(&self, mut report: VialReport) {
+        // Intercept [0x53, 0x03] (Get Active Layer): answer immediately from locally
+        // cached active layer to avoid recurring 32-byte BLE round-trips that stall trackball reports.
+        if report[0] == 0x53 && report[1] == 0x03 {
+            if !self.link_connected.load(Ordering::Relaxed) {
+                // Keyboard link is offline/asleep: echo 0xFF as indicator
+                report[0] = 0xFF;
+                let _ = self.to_host.send(report).await;
+                return;
+            }
+            report[0] = 0x53;
+            report[1] = 0x03;
+            report[2] = self.active_layer.load(Ordering::Relaxed);
+            let _ = self.to_host.send(report).await;
+            return;
+        }
+
         // `link_dropped` is polled first so it wins the tie when the link dies mid-wait.
         if self.link_connected.load(Ordering::Relaxed)
             && let Either::Second(()) = select(self.link_dropped.wait(), self.to_keyboard.send(report)).await
@@ -195,6 +220,39 @@ mod tests {
         let mut tx = VecWrite { captured: Vec::new() };
         block_on(router.run_session(&mut rx, &mut tx));
         tx.captured
+    }
+
+    #[test]
+    fn get_active_layer_is_answered_locally_without_forwarding_over_ble() {
+        let router = DongleRouter::new();
+        router.link_up();
+        router.set_active_layer(1);
+
+        let mut req = [0u8; VIAL_EP_SIZE];
+        req[0] = 0x53;
+        req[1] = 0x03;
+
+        let captured = run(&router, VecDeque::from([req.to_vec()]), 2);
+        assert_eq!(captured.len(), VIAL_EP_SIZE);
+        assert_eq!(captured[0], 0x53);
+        assert_eq!(captured[1], 0x03);
+        assert_eq!(captured[2], 1, "active layer is returned from local cache");
+        assert!(
+            router.to_keyboard.try_receive().is_err(),
+            "0x53 0x03 was NOT forwarded to keyboard over BLE"
+        );
+    }
+
+    #[test]
+    fn get_active_layer_when_disconnected_answers_ff() {
+        let router = DongleRouter::new();
+        let mut req = [0u8; VIAL_EP_SIZE];
+        req[0] = 0x53;
+        req[1] = 0x03;
+
+        let captured = run(&router, VecDeque::from([req.to_vec()]), 2);
+        assert_eq!(captured.len(), VIAL_EP_SIZE);
+        assert_eq!(captured[0], 0xFF, "offline keyboard signals 0xFF");
     }
 
     #[test]

@@ -519,7 +519,13 @@ where
                 } else if chars.event.as_ref().is_some_and(|ch| ch.handle == handle) {
                     // One notification is one whole event, so there is nothing to reassemble.
                     match postcard::from_bytes::<DongleEvent>(data) {
-                        Ok(event) => publish_event(event),
+                        Ok(event) => {
+                            #[cfg(feature = "vial")]
+                            if let DongleEvent::Layer(e) = &event {
+                                self.router.set_active_layer(e.0);
+                            }
+                            publish_event(event);
+                        }
                         Err(_) => warn!("[dongle] undecodable event notify dropped"),
                     }
                 } else if let Some(report) = chars.report(handle, data) {

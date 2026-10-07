@@ -240,6 +240,7 @@ def run_daemon():
             if state["last_layer"] != -1:
                 indicator.deactivate()
                 state["last_layer"] = -1
+            state["reconnect_delay"] = 20  # wait ~1s before retrying when keyboard is sleeping/offline
             return True
 
         # 3. Handle transition
@@ -268,8 +269,9 @@ def run_daemon():
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    # Poll every 125ms (~8 Hz) to preserve BLE bandwidth for trackball reports
-    GLib.timeout_add(125, poll_keyboard)
+    # Poll every 50ms (~20 Hz) for instant panel responsiveness;
+    # Dongle answers locally from USB RAM (zero BLE traffic and zero keyboard battery drain).
+    GLib.timeout_add(50, poll_keyboard)
 
     try:
         loop.run()
