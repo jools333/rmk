@@ -842,9 +842,9 @@ pub(crate) async fn set_conn_params<
     let requests = [
         // The first request is what Apple devices accept:
         // https://developer.apple.com/accessories/Accessory-Design-Guidelines.pdf
-        (Duration::from_millis(15), 30, Duration::from_secs(6)),
-        // The second request is for best performance
-        (Duration::from_micros(7500), 60, Duration::from_secs(6)),
+        (Duration::from_millis(15), 0, Duration::from_secs(6)),
+        // The second request is for best performance (trackball requires 0 slave latency)
+        (Duration::from_micros(7500), 0, Duration::from_secs(6)),
     ];
 
     for (interval, max_latency, supervision_timeout) in requests {
@@ -922,10 +922,18 @@ async fn serve_keyboard_connection<
     #[cfg(feature = "split")]
     let battery_task = embassy_futures::join::join(ble_battery_server.run(), ble_peripheral_battery_server.run());
 
+    let conn_params_task = async {
+        if dongle_link {
+            core::future::pending::<()>().await
+        } else {
+            set_conn_params(stack, conn).await
+        }
+    };
+
     let communication_task = async {
         if let Either3::First(e) = select3(
             gatt_events_task(server, conn),
-            set_conn_params(stack, conn),
+            conn_params_task,
             battery_task,
         )
         .await

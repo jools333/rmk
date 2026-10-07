@@ -4,6 +4,7 @@ split_central_sleep_timeout_seconds = 180
 combo_max_num = 20
 combo_max_length = 4
 auto_mouse_layer_max_num = 0
+report_channel_size = 32
 
 [event.action]
 channel_size = 16

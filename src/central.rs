@@ -64,8 +64,8 @@ async fn mpsl_task(mpsl: &'static MultiprotocolServiceLayer<'static>) -> ! {
     mpsl.run().await
 }
 
-const L2CAP_TXQ: u8 = 3;
-const L2CAP_RXQ: u8 = 3;
+const L2CAP_TXQ: u8 = 4;
+const L2CAP_RXQ: u8 = 4;
 const L2CAP_MTU: usize = 251;
 
 fn build_sdc<'d, const N: usize>(

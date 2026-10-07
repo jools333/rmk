@@ -61,7 +61,10 @@ GREEN_PANEL_CSS = """
 
 
 def find_vial_device() -> str | None:
-    """Finds the Charybdis Mini / Dongle Vial raw HID device node (/dev/hidrawX)."""
+    """Finds the Charybdis Mini / Dongle Vial raw HID device node (/dev/hidrawX).
+    Prioritizes direct wired connection (PID 4643) over wireless dongle (PID 4644).
+    """
+    candidates = []
     for dev_path in sorted(glob.glob("/dev/hidraw*")):
         base = os.path.basename(dev_path)
         syspath = f"/sys/class/hidraw/{base}/device"
@@ -70,14 +73,24 @@ def find_vial_device() -> str | None:
                 uevent = f.read()
             if f":0000{CHARYBDIS_VID}:" not in uevent:
                 continue
-            if not any(f":0000{pid}" in uevent for pid in CHARYBDIS_PIDS):
+            matched_pid = None
+            for pid in CHARYBDIS_PIDS:
+                if f":0000{pid}" in uevent:
+                    matched_pid = pid
+                    break
+            if not matched_pid:
                 continue
             with open(f"{syspath}/report_descriptor", "rb") as f:
                 desc = f.read()
             if VIAL_USAGE_SIGNATURE in desc:
-                return dev_path
+                # Priority: wired (4643) is 0, dongle (4644) is 1
+                priority = 0 if matched_pid == "4643" else 1
+                candidates.append((priority, dev_path))
         except (OSError, IOError):
             continue
+    if candidates:
+        candidates.sort(key=lambda x: x[0])
+        return candidates[0][1]
     return None
 
 
@@ -173,11 +186,17 @@ def run_daemon():
         "dev": None,
         "last_layer": None,
         "running": True,
+        "error_count": 0,
+        "reconnect_delay": 0,
     }
 
     def poll_keyboard():
         if not state["running"]:
             return False
+
+        if state["reconnect_delay"] > 0:
+            state["reconnect_delay"] -= 1
+            return True
 
         # 1. Connect if needed
         if state["fd"] is None:
@@ -186,10 +205,12 @@ def run_daemon():
                 try:
                     state["fd"] = os.open(dev, os.O_RDWR)
                     state["dev"] = dev
+                    state["error_count"] = 0
                     print(f"Connected to Charybdis Vial interface: {dev}")
                 except (OSError, IOError):
                     state["fd"] = None
                     state["dev"] = None
+                    state["reconnect_delay"] = 8  # wait ~1s before retrying
             if state["fd"] is None:
                 indicator.deactivate()
                 return True
@@ -197,16 +218,22 @@ def run_daemon():
         # 2. Query active layer
         layer = query_active_layer(state["fd"])
         if layer is None:
-            print(f"Device disconnected or read error on {state['dev']}. Reconnecting...")
-            try:
-                os.close(state["fd"])
-            except OSError:
-                pass
-            state["fd"] = None
-            state["dev"] = None
-            state["last_layer"] = None
-            indicator.deactivate()
+            state["error_count"] += 1
+            if state["error_count"] >= 3:
+                print(f"Device disconnected or persistent read error on {state['dev']}. Reconnecting...")
+                try:
+                    os.close(state["fd"])
+                except OSError:
+                    pass
+                state["fd"] = None
+                state["dev"] = None
+                state["last_layer"] = None
+                state["error_count"] = 0
+                state["reconnect_delay"] = 8  # wait ~1s before retrying
+                indicator.deactivate()
             return True
+
+        state["error_count"] = 0
 
         # Keyboard link is offline/asleep (-1)
         if layer == -1:
@@ -241,8 +268,8 @@ def run_daemon():
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    # Poll every 25ms (40 Hz)
-    GLib.timeout_add(25, poll_keyboard)
+    # Poll every 125ms (~8 Hz) to preserve BLE bandwidth for trackball reports
+    GLib.timeout_add(125, poll_keyboard)
 
     try:
         loop.run()
