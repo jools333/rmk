@@ -6,6 +6,10 @@ target/
 uf2conv.py
 uf2families.json
 
+# Python artifacts
+__pycache__/
+*.pyc
+
 # OS files
 .DS_Store
 Thumbs.db
