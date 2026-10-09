@@ -239,13 +239,13 @@ async fn main(spawner: Spawner) {
         swap_xy: true,
         accel: Some(AccelConfig {
             base_sens: 0.2,
-            accel: 1.2,
-            sens_cap: 12.0,
+            accel: 0.6,
+            sens_cap: 25.0,
             speed_cap: 0.0,
             offset: 0.0,
-            exponent: 1.0,
+            exponent: 1.5,
             midpoint: 2.0,
-            curve: AccelCurve::Linear,
+            curve: AccelCurve::Classic,
         }),
         inertial_scroll: Some(InertialScrollConfig::default()),
     };
