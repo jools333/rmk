@@ -240,10 +240,10 @@ async fn main(spawner: Spawner) {
         accel: Some(AccelConfig {
             base_sens: 0.2,
             accel: 0.6,
-            sens_cap: 25.0,
+            sens_cap: 60.0,
             speed_cap: 0.0,
             offset: 0.0,
-            exponent: 1.5,
+            exponent: 2.0,
             midpoint: 2.0,
             curve: AccelCurve::Classic,
         }),
