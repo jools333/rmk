@@ -181,7 +181,7 @@ def query_active_layer(fd: int) -> int | None:
     req[1] = 0x03  # Subcommand 0x03: Get Active Layer
     try:
         os.write(fd, req)
-        r, _, _ = select.select([fd], [], [], 0.05)  # 50ms safety timeout
+        r, _, _ = select.select([fd], [], [], 0.08)  # 80ms safety timeout
         if not r:
             return None
         resp = os.read(fd, 32)
@@ -210,6 +210,7 @@ def run_daemon():
         "pid": None,
         "last_layer": None,
         "running": True,
+        "error_count": 0,
         "timeout_id": 0,
         "last_priority_check": 0.0,
     }
@@ -224,6 +225,7 @@ def run_daemon():
         state["dev"] = None
         state["pid"] = None
         state["last_layer"] = None
+        state["error_count"] = 0
 
     def poll_cycle():
         if not state["running"]:
@@ -250,6 +252,7 @@ def run_daemon():
                     state["dev"] = dev_path
                     state["pid"] = dev_pid
                     state["last_priority_check"] = now
+                    state["error_count"] = 0
                     kind = "wired" if dev_pid == "4643" else "wireless dongle"
                     print(f"Connected to Charybdis {kind} Vial interface: {dev_path}")
                 except (OSError, IOError):
@@ -263,12 +266,19 @@ def run_daemon():
         layer = query_active_layer(state["fd"])
 
         if layer is None:
-            # Physical USB disconnect or fatal read error
-            print(f"Device disconnected or read error on {state['dev']}. Reconnecting...")
-            cleanup_fd()
-            indicator.deactivate()
-            state["timeout_id"] = GLib.timeout_add(POLL_INTERVAL_RETRY_MS, poll_cycle)
+            state["error_count"] += 1
+            if state["error_count"] >= 3:
+                # Persistent physical disconnect or read error
+                print(f"Device disconnected or persistent read error on {state['dev']}. Reconnecting...")
+                cleanup_fd()
+                indicator.deactivate()
+                state["timeout_id"] = GLib.timeout_add(POLL_INTERVAL_RETRY_MS, poll_cycle)
+                return False
+            # Transient USB timeout/jitter: retry next active poll without tearing down connection
+            state["timeout_id"] = GLib.timeout_add(POLL_INTERVAL_ACTIVE_MS, poll_cycle)
             return False
+
+        state["error_count"] = 0
 
         if layer == -1:
             # Keyboard link is offline/asleep (0xFF response)
