@@ -545,6 +545,8 @@ pub struct PointingProcessor<'a> {
     accelerator: Option<MouseAccelerator>,
     /// Inertial / kinetic scroller
     scroller: Option<InertialScroller>,
+    /// Pending mouse report coalesced when transport channel is busy
+    pending_mouse: Option<MouseReport>,
 }
 
 impl<'a> PointingProcessor<'a> {
@@ -559,6 +561,7 @@ impl<'a> PointingProcessor<'a> {
             current_mode: PointingMode::default(),
             accelerator,
             scroller,
+            pending_mouse: None,
         }
     }
 
@@ -575,8 +578,40 @@ impl<'a> PointingProcessor<'a> {
         self
     }
 
-    /// Periodic tick for background tasks such as inertial / kinetic scrolling
+    /// Send a mouse report immediately if the channel has space; otherwise coalesce with pending report
+    /// to eliminate wireless queue latency, bufferbloat, and post-stop cursor crawl.
+    fn send_or_coalesce_mouse_report(&mut self, report: MouseReport) {
+        let to_send = if let Some(mut pending) = self.pending_mouse.take() {
+            pending.x = pending.x.saturating_add(report.x);
+            pending.y = pending.y.saturating_add(report.y);
+            pending.wheel = pending.wheel.saturating_add(report.wheel);
+            pending.pan = pending.pan.saturating_add(report.pan);
+            pending.buttons = report.buttons;
+            pending
+        } else {
+            report
+        };
+
+        match crate::channel::try_send_mouse_report(to_send) {
+            Ok(()) => {}
+            Err(unsent) => {
+                self.pending_mouse = Some(unsent);
+            }
+        }
+    }
+
+    /// Periodic tick for background tasks such as inertial / kinetic scrolling and flushing coalesced reports
     async fn poll(&mut self) {
+        // Flush any pending coalesced report when the transport channel frees up
+        if let Some(pending) = self.pending_mouse.take() {
+            match crate::channel::try_send_mouse_report(pending) {
+                Ok(()) => {}
+                Err(unsent) => {
+                    self.pending_mouse = Some(unsent);
+                }
+            }
+        }
+
         if let Some(ref mut scroller) = self.scroller {
             let was_coasting = scroller.is_coasting();
             let now = Instant::now();
@@ -604,14 +639,13 @@ impl<'a> PointingProcessor<'a> {
                     let wheel = if scroll_config.invert_y { accum_y } else { -accum_y };
                     let pan = if scroll_config.invert_x { -accum_x } else { accum_x };
                     let buttons = self.keymap.mouse_buttons();
-                    send_hid_report(Report::MouseReport(MouseReport {
+                    self.send_or_coalesce_mouse_report(MouseReport {
                         buttons,
                         x: 0,
                         y: 0,
                         wheel,
                         pan,
-                    }))
-                    .await;
+                    });
                 }
             } else if was_coasting && !scroller.is_coasting() {
                 // Coasting finished smoothly: clear remainder to prevent ghost offset
@@ -743,7 +777,7 @@ impl<'a> PointingProcessor<'a> {
                     _ => unreachable!(),
                 };
 
-                send_hid_report(Report::MouseReport(mouse_report)).await;
+                self.send_or_coalesce_mouse_report(mouse_report);
             }
             PointingMode::Caret(caret_config) => {
                 if let Some((keycode, count)) = compute_caret_taps(x, y, &mut self.accumulator, &caret_config) {

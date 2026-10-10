@@ -13,7 +13,7 @@ use {crate::ble::profile::BleProfileAction, rmk_types::led_indicator::LedIndicat
 #[cfg(all(feature = "vial", feature = "_ble"))]
 use crate::VIAL_CHANNEL_SIZE;
 use crate::event::KeyboardEvent;
-use crate::hid::{KeyboardReport, Report};
+use crate::hid::{KeyboardReport, MouseReport, Report};
 use crate::{REPORT_CHANNEL_SIZE, RawMutex};
 
 type ReportChannel = Channel<RawMutex, Report, REPORT_CHANNEL_SIZE>;
@@ -72,6 +72,18 @@ pub(crate) async fn send_hid_report(mut report: Report) {
 pub(crate) fn try_send_hid_report(report: Report) {
     if let Some((_, ch)) = active_report_channel() {
         let _ = ch.try_send(report);
+    }
+}
+
+/// Try to send a mouse report without blocking. If the channel is full or unavailable, returns Err(report).
+pub(crate) fn try_send_mouse_report(report: MouseReport) -> Result<(), MouseReport> {
+    if let Some((_, ch)) = active_report_channel() {
+        ch.try_send(Report::MouseReport(report)).map_err(|e| match e {
+            TrySendError::Full(Report::MouseReport(r)) => r,
+            _ => report,
+        })
+    } else {
+        Err(report)
     }
 }
 

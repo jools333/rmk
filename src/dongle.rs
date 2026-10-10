@@ -50,6 +50,7 @@ fn build_sdc<'d, const N: usize>(
         .support_dle_central()
         .support_phy_update_central()
         .support_le_2m_phy()
+        .default_tx_power(8)?
         // One keyboard, one link
         .central_count(1)?
         .buffer_cfg(

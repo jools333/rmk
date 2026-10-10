@@ -85,6 +85,7 @@ fn build_sdc<'d, const N: usize>(
         .support_phy_update_peripheral()
         .support_le_2m_phy()
         .support_connection_subrating_central()
+        .default_tx_power(8)?
         // 1 split peripheral (Left half)
         .central_count(1)?
         // 1 link toward dongle or host
@@ -227,8 +228,15 @@ async fn main(spawner: Spawner) {
     let pmw3610_cs = Output::new(p.P0_20, Level::High, OutputDrive::Standard);
     let pmw3610_motion = Some(Input::new(p.P0_06, Pull::Up));
     let pmw3610_spi = BitBangSpiBus::new(pmw3610_sck, pmw3610_sdio);
-    let mut pmw3610_device =
-        PointingDevice::<Pmw3610<_, _, _>>::new(0, pmw3610_spi, pmw3610_cs, pmw3610_motion, pmw3610_config);
+    // PMW3610 optical sensor with 90 Hz report rate (11.1ms tick, perfectly matched to 7.5ms BLE connection interval)
+    let mut pmw3610_device = PointingDevice::<Pmw3610<_, _, _>>::with_report_hz(
+        0,
+        pmw3610_spi,
+        pmw3610_cs,
+        pmw3610_motion,
+        pmw3610_config,
+        90,
+    );
 
     // Pointing processor with axes transform: swap_xy = true, invert_x = true, invert_y = true
     // and dynamic Leetmouse / RawAccel mouse acceleration (linear curve with subpixel carry)
