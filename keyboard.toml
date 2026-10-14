@@ -52,7 +52,7 @@ switch_to_default_layer = true
 combos = [
     { actions = ["WM(C, LCtrl)", "Quote"], output = "WM(Kc1, LGui)" },
     { actions = ["E", "I"], output = "WM(Kc3, LGui)" },
-    { actions = ["R", "U"], output = "WM(Kc4, RGui)" },
+    { actions = ["LT(6, R)", "U"], output = "WM(Kc4, RGui)" },
     { actions = ["Z", "Slash"], output = "WM(Q, LShift | LGui)" },
     { actions = ["V", "M"], output = "WM(Kc2, RGui)" },
     { actions = ["F", "Semicolon"], output = "WM(S, LCtrl)" },

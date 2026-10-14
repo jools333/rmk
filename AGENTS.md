@@ -107,12 +107,9 @@ charybdis-rmk/
 - **Transform**:
   - Base CPI: 800 CPI
   - Coordinates: `swap_xy = true`, `invert_x = true`, `invert_y = true`
-- **Dynamic Mouse Acceleration (Leetmouse / RawAccel)**:
-  - ARM Cortex-M4F hardware FPU acceleration with sub-pixel carry buffer (`carry_x`, `carry_y`).
-  - Base sensitivity: `0.2` (~160 CPI for micro-aiming, completely removing the need to hold a sniper layer).
-  - Acceleration rate: `1.2` (Linear curve).
-  - Sensitivity cap: `12.0` (up to 2.4x = 1920 CPI on fast flicks).
-  - Sits in `rmk-upstream/rmk/src/input_device/pointing/accel.rs`.
+- **Cursor Speed & Tracking**:
+  - Direct 1:1 hardware sensor tracking without dynamic speed-dependent acceleration (`accel: None`).
+  - Base CPI: 800 CPI provides naturally fast, immediate, and responsive cursor movement.
 - **Inertial / Kinetic Scrolling**:
   - Physics-based momentum with friction decay (`friction: 0.95`, `rmk-upstream/rmk/src/input_device/pointing/inertial_scroll.rs`).
   - Polling interval: 12ms (~83 Hz) via `PollingProcessor`.
@@ -123,7 +120,7 @@ charybdis-rmk/
 - **Auto-Mouse Layer (Layer 1)**:
   - Disabled. (Mechanism removed from central runner and configuration).
 - **Auxiliary Layer Modes**:
-  - Sniper Mode (Layer 6): 1/6 divisor retained as fixed fallback.
+  - Sniper Mode (Layer 6): 1/6 divisor activated by holding `R` (`lt!(6, R)` on Layer 0, `mo!(6)` on Layers 1, 6, 7) for fine sub-pixel aiming.
   - Scroll Mode (Layer 7): 1/24 divisor for ultra-smooth physical and inertial scrolling.
 
 ---
@@ -156,7 +153,7 @@ We enhanced RMK upstream (`feature/multi-dongle-bonds`, embedded in `rmk-upstrea
 
 ## 5. Keymap & Layer Reference
 
-- **Layer 0 (Base)**: QWERTY + Home-row mods (`D` = LAlt, `F` = LShift, `G` = LCtrl, `K` = LAlt, `J` = RShift, `H` = RCtrl), thumb mods (`Space` = LGui, `Delete` = LGui, `Enter` = RGui). Direct non-delayed keys on `E`, `R`, `'` (Quote), `ESC`. Layer-taps on `lt!(7, W)`, `lt!(2, Delete)`, `lt!(3, Backspace)`.
+- **Layer 0 (Base)**: QWERTY + Home-row mods (`D` = LAlt, `F` = LShift, `G` = LCtrl, `K` = LAlt, `J` = RShift, `H` = RCtrl), thumb mods (`Space` = LGui, `Delete` = LGui, `Enter` = RGui). Direct non-delayed keys on `E`, `'` (Quote), `ESC`. Layer-taps on `lt!(7, W)`, `lt!(6, R)` (Sniper mode), `lt!(2, Delete)`, `lt!(3, Backspace)`.
 - **Layer 1 (Mouse)**: Mouse buttons (MB1, MB2, MB3) on both thumbs, shortcuts Win+1/3/4, GraveEscape, Vim tab macros `macros!(2)` (`gt`) and `macros!(3)` (`gT`), `F5`, momentary access to Sniper (`mo!(6)`) and Scroll (`mo!(7)`), toggle to Layer 0 (`to!(0)`).
 - **Layer 2 (Symbol)**: Shifted symbols (`!@#$%^&*()_+`), braces, brackets, pipe, tilde, and layer toggles (`tg!(4)` Fun, `tg!(5)` Game, `tg!(3)` Num).
 - **Layer 3 (Number)**: Numeric row, navigation cluster (Home, End, Up, Down, Left, Right), function keys F1..F12, search shortcuts, transparent thumb Enter (`a!(Transparent)`).

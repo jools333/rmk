@@ -36,8 +36,7 @@ use rmk::input_device::adc::{AnalogEventType, NrfAdc};
 use rmk::input_device::battery::BatteryProcessor;
 use rmk::input_device::pmw3610::{BitBangSpiBus, Pmw3610, Pmw3610Config};
 use rmk::input_device::pointing::{
-    AccelConfig, AccelCurve, InertialScrollConfig, PointingDevice, PointingProcessor,
-    PointingProcessorConfig,
+    InertialScrollConfig, PointingDevice, PointingProcessor, PointingProcessorConfig,
 };
 use rmk::keyboard::Keyboard;
 use rmk::matrix::Matrix;
@@ -180,7 +179,7 @@ async fn main(spawner: Spawner) {
         start_addr: 0xA0000,
         num_sectors: 6,
         clear_storage: false,
-        clear_layout: false,
+        clear_layout: true,
         ..Default::default()
     };
     let mut vial_config = VialConfig::new(VIAL_KEYBOARD_ID, VIAL_KEYBOARD_DEF, &[(0, 0), (0, 11)]);
@@ -239,22 +238,12 @@ async fn main(spawner: Spawner) {
     );
 
     // Pointing processor with axes transform: swap_xy = true, invert_x = true, invert_y = true
-    // and dynamic Leetmouse / RawAccel mouse acceleration (linear curve with subpixel carry)
     let pointing_processor_config = PointingProcessorConfig {
         device_id: 0,
         invert_x: true,
         invert_y: true,
         swap_xy: true,
-        accel: Some(AccelConfig {
-            base_sens: 0.2,
-            accel: 0.75,
-            sens_cap: 80.0,
-            speed_cap: 0.0,
-            offset: 0.0,
-            exponent: 2.0,
-            midpoint: 2.0,
-            curve: AccelCurve::Classic,
-        }),
+        accel: None,
         inertial_scroll: Some(InertialScrollConfig::default()),
     };
     let mut pointing_processor = PointingProcessor::new(&keymap, pointing_processor_config);

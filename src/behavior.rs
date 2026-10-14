@@ -3,7 +3,7 @@ use rmk::keyboard::combo::{Combo, ComboConfig};
 use rmk::types::constants::COMBO_MAX_NUM;
 use rmk::types::modifier::ModifierCombination;
 use rmk::types::morse::{MorseMode, MorseProfile};
-use rmk::{k, macros, wm};
+use rmk::{k, lt, macros, wm};
 
 pub fn get_default_behavior_config() -> BehaviorConfig {
     let mut behavior_config = BehaviorConfig::default();
@@ -48,9 +48,9 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             wm!(Kc3, ModifierCombination::LGUI),
             None,
         ))),
-        // 3. R + U -> Win+4 (App 4)
+        // 3. lt!(6, R) + U -> Win+4 (App 4)
         Some(Combo::new(ComboConfig::new(
-            [k!(R), k!(U)],
+            [lt!(6, R), k!(U)],
             wm!(Kc4, ModifierCombination::RGUI),
             None,
         ))),
