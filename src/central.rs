@@ -217,7 +217,7 @@ async fn main(spawner: Spawner) {
     // PMW3610 Trackball (Right Half):
     // SCK: P0.08, SDIO: P0.17, CS: P0.20, MOTION: P0.06
     let pmw3610_config = Pmw3610Config {
-        res_cpi: 800,
+        res_cpi: 1200,
         smart_mode: true,
         force_awake: true,
         ..Default::default()

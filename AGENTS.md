@@ -105,11 +105,11 @@ charybdis-rmk/
   - CS: `P0.20`
   - MOTION: `P0.06` (Input with pull-up)
 - **Transform**:
-  - Base CPI: 800 CPI
+  - Base CPI: 1200 CPI
   - Coordinates: `swap_xy = true`, `invert_x = true`, `invert_y = true`
 - **Cursor Speed & Tracking**:
   - Direct 1:1 hardware sensor tracking without dynamic speed-dependent acceleration (`accel: None`).
-  - Base CPI: 800 CPI provides naturally fast, immediate, and responsive cursor movement.
+  - Base CPI: 1200 CPI provides naturally fast, immediate, and responsive cursor movement (+50% boost over stock 800 CPI).
 - **Inertial / Kinetic Scrolling**:
   - Physics-based momentum with friction decay (`friction: 0.95`, `rmk-upstream/rmk/src/input_device/pointing/inertial_scroll.rs`).
   - Polling interval: 12ms (~83 Hz) via `PollingProcessor`.
@@ -120,7 +120,7 @@ charybdis-rmk/
 - **Auto-Mouse Layer (Layer 1)**:
   - Disabled. (Mechanism removed from central runner and configuration).
 - **Auxiliary Layer Modes**:
-  - Sniper Mode (Layer 6): 1/6 divisor activated by holding `R` (`lt!(6, R)` on Layer 0, `mo!(6)` on Layers 1, 6, 7) for fine sub-pixel aiming.
+  - Sniper Mode (Layer 6): 1/9 divisor activated by holding `R` (`lt!(6, R)` on Layer 0, `mo!(6)` on Layers 1, 6, 7) for fine 133 CPI sub-pixel aiming.
   - Scroll Mode (Layer 7): 1/24 divisor for ultra-smooth physical and inertial scrolling.
 
 ---

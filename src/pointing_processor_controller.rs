@@ -12,13 +12,13 @@ impl PointingProcessorController {
 
     async fn on_layer_change_event(&mut self, event: LayerChangeEvent) {
         match event.0 {
-            // Layer 6: MouseSnip - Snipe mode (1:6 scaling divisor, matching ZMK &zip_xy_scaler 1 6)
+            // Layer 6: MouseSnip - Snipe mode (1:9 scaling divisor on 1200 CPI = 133 CPI fine aim)
             6 => {
                 publish_event(PointingProcessorEvent {
                     device_id: 0,
                     mode: PointingMode::Sniper(rmk::input_device::pointing::SniperConfig {
                         multiplier: 1,
-                        divisor: 6,
+                        divisor: 9,
                         invert_x: false,
                         invert_y: false,
                     }),
