@@ -20,10 +20,8 @@ use crate::channel::send_hid_report;
 use crate::core_traits::Runnable;
 #[cfg(all(feature = "split", feature = "_ble"))]
 use crate::event::ClearPeerEvent;
-use embassy_futures::select::{Either, select};
 use crate::event::{
-    ActionEvent, Axis, AxisValType, KeyboardEvent, KeyboardEventPos, ModifierEvent, PointingEvent,
-    SubscribableEvent, publish_event, publish_event_async,
+    ActionEvent, KeyboardEvent, KeyboardEventPos, ModifierEvent, SubscribableEvent, publish_event, publish_event_async,
 };
 use crate::hid::{KeyboardReport, Report};
 use crate::keyboard::combo::Combo;
@@ -144,36 +142,12 @@ impl Runnable for Keyboard<'_> {
     async fn run(&mut self) -> ! {
         loop {
             // Wait for the next event, but wake up at the earliest pending deadline.
-            // When an unresolved morse key exists (e.g. holding R or W), wake up immediately on pointing motion.
+            // `with_deadline` polls the subscriber first, so a queued event is handled first.
             let event = match self.next_deadline() {
-                Some(deadline) => {
-                    if self.has_unresolved_morse_key() {
-                        match with_deadline(
-                            deadline,
-                            select(
-                                self.keyboard_event_subscriber.next_message_pure(),
-                                self.pointing_event_subscriber.next_message_pure(),
-                            ),
-                        )
-                        .await
-                        {
-                            Ok(Either::First(k_event)) => Some(k_event),
-                            Ok(Either::Second(p_event)) => {
-                                self.handle_pointing_motion(p_event).await;
-                                continue;
-                            }
-                            Err(_) => None,
-                        }
-                    } else {
-                        with_deadline(deadline, self.keyboard_event_subscriber.next_message_pure())
-                            .await
-                            .ok()
-                    }
-                }
-                None => {
-                    while self.pointing_event_subscriber.try_next_message_pure().is_some() {}
-                    Some(self.keyboard_event_subscriber.next_message_pure().await)
-                }
+                Some(deadline) => with_deadline(deadline, self.keyboard_event_subscriber.next_message_pure())
+                    .await
+                    .ok(),
+                None => Some(self.keyboard_event_subscriber.next_message_pure().await),
             };
             match event {
                 Some(event) => self.process_inner(event).await,
@@ -201,9 +175,6 @@ pub struct Keyboard<'a> {
         { crate::KEYBOARD_EVENT_SUB_SIZE },
         { crate::KEYBOARD_EVENT_PUB_SIZE },
     >,
-
-    /// Pointing event subscriber to detect mouse motion while tap-hold keys are pressed
-    pointing_event_subscriber: <PointingEvent as SubscribableEvent>::Subscriber,
 
     /// Buffered held keys
     pub held_buffer: HeldBuffer,
@@ -283,7 +254,6 @@ impl<'a> Keyboard<'a> {
         Keyboard {
             keymap,
             keyboard_event_subscriber: KeyboardEvent::subscriber(),
-            pointing_event_subscriber: PointingEvent::subscriber(),
             last_press_time: Instant::now(),
             osl_state: OneShotState::default(),
             osl_deadline: None,
@@ -372,46 +342,6 @@ impl<'a> Keyboard<'a> {
         #[cfg(feature = "_ble")]
         self.fire_user_hold().await;
         self.fire_mouse_repeat().await;
-    }
-
-    /// Resolve any held layer-tap mouse keys (such as R for sniper or W for scroll) immediately when pointing motion occurs
-    async fn handle_pointing_motion(&mut self, event: PointingEvent) {
-        let mut total: i32 = 0;
-        for axis in &event.axes {
-            if matches!(axis.typ, AxisValType::Rel) && matches!(axis.axis, Axis::X | Axis::Y) {
-                total += axis.value.abs() as i32;
-            }
-        }
-
-        // Require at least 4 counts of movement to filter out resting-hand vibrations/noise
-        if total < 4 {
-            return;
-        }
-
-        let mut to_resolve: Vec<(Action, KeyboardEvent), 4> = Vec::new();
-        for k in self.held_buffer.keys.iter_mut() {
-            if let KeyState::Pressed(pattern) = k.state {
-                if let KeyAction::TapHold(_, Action::LayerOn(layer), _) = k.action {
-                    if layer == 6 || layer == 7 {
-                        let pattern = pattern.followed_by_hold();
-                        if let Some(action) = Self::try_predict_final_action(self.keymap, &k.action, pattern) {
-                            k.state = KeyState::ProcessedButReleaseNotReportedYet(action);
-                            let _ = to_resolve.push((action, k.event));
-                        }
-                    }
-                }
-            }
-        }
-
-        let resolved_any = !to_resolve.is_empty();
-        for (action, key_event) in to_resolve {
-            debug!("Pointing motion resolved held key {:?} to {:?}", key_event, action);
-            self.process_key_action_normal(action, key_event).await;
-        }
-
-        if resolved_any && !self.has_unresolved_morse_key() {
-            self.fire_held_non_morse_keys().await;
-        }
     }
 
     /// Resolve `key` if its timeout has passed: dispatch the combo it waits on, or

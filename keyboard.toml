@@ -42,6 +42,14 @@ hold_timeout = "200ms"
 gap_timeout = "180ms"
 quick_tap_timeout = "180ms"
 
+[behavior.morse.profiles.sniper]
+enable_flow_tap = true
+unilateral_tap = true
+permissive_hold = true
+hold_timeout = "80ms"
+gap_timeout = "180ms"
+quick_tap_timeout = "180ms"
+
 [behavior.one_shot]
 timeout = "1000ms"
 
@@ -52,7 +60,7 @@ switch_to_default_layer = true
 combos = [
     { actions = ["WM(C, LCtrl)", "Quote"], output = "WM(Kc1, LGui)" },
     { actions = ["E", "I"], output = "WM(Kc3, LGui)" },
-    { actions = ["LT(6, R)", "U"], output = "WM(Kc4, RGui)" },
+    { actions = ["LT(6, R, sniper)", "U"], output = "WM(Kc4, RGui)" },
     { actions = ["Z", "Slash"], output = "WM(Q, LShift | LGui)" },
     { actions = ["V", "M"], output = "WM(Kc2, RGui)" },
     { actions = ["F", "Semicolon"], output = "WM(S, LCtrl)" },
