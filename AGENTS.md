@@ -120,7 +120,7 @@ charybdis-rmk/
 - **Auto-Mouse Layer (Layer 1)**:
   - Disabled. (Mechanism removed from central runner and configuration).
 - **Auxiliary Layer Modes**:
-  - Sniper Mode (Layer 6): 1/9 divisor activated by holding `R` (`ltp!(6, R, 0)` with 80ms fast hold-timeout on Layer 0, `mo!(6)` on Layers 1, 6, 7) for fine 133 CPI sub-pixel aiming.
+  - Sniper Mode (Layer 6): 1/9 divisor activated by holding `R` (`lt!(6, R)` on Layer 0 with instant motion-trigger resolution, `mo!(6)` on Layers 1, 6, 7) for fine 133 CPI sub-pixel aiming. Moving trackball while `R` is held activates sniper mode immediately (0 ms) and suppresses typing `r` upon release; stationary typing retains the full 200ms hold timeout without swallowed keystrokes.
   - Scroll Mode (Layer 7): 1/24 divisor for ultra-smooth physical and inertial scrolling.
 
 ---
@@ -153,7 +153,7 @@ We enhanced RMK upstream (`feature/multi-dongle-bonds`, embedded in `rmk-upstrea
 
 ## 5. Keymap & Layer Reference
 
-- **Layer 0 (Base)**: QWERTY + Home-row mods (`D` = LAlt, `F` = LShift, `G` = LCtrl, `K` = LAlt, `J` = RShift, `H` = RCtrl), thumb mods (`Space` = LGui, `Delete` = LGui, `Enter` = RGui). Direct non-delayed keys on `E`, `'` (Quote), `ESC`. Layer-taps on `lt!(7, W)`, `ltp!(6, R, 0)` (Sniper mode, 80ms fast timeout), `lt!(2, Delete)`, `lt!(3, Backspace)`.
+- **Layer 0 (Base)**: QWERTY + Home-row mods (`D` = LAlt, `F` = LShift, `G` = LCtrl, `K` = LAlt, `J` = RShift, `H` = RCtrl), thumb mods (`Space` = LGui, `Delete` = LGui, `Enter` = RGui). Direct non-delayed keys on `E`, `'` (Quote), `ESC`. Layer-taps on `lt!(7, W)`, `lt!(6, R)` (Sniper mode, instant motion trigger), `lt!(2, Delete)`, `lt!(3, Backspace)`.
 - **Layer 1 (Mouse)**: Mouse buttons (MB1, MB2, MB3) on both thumbs, shortcuts Win+1/3/4, GraveEscape, Vim tab macros `macros!(2)` (`gt`) and `macros!(3)` (`gT`), `F5`, momentary access to Sniper (`mo!(6)`) and Scroll (`mo!(7)`), toggle to Layer 0 (`to!(0)`).
 - **Layer 2 (Symbol)**: Shifted symbols (`!@#$%^&*()_+`), braces, brackets, pipe, tilde, and layer toggles (`tg!(4)` Fun, `tg!(5)` Game, `tg!(3)` Num).
 - **Layer 3 (Number)**: Numeric row, navigation cluster (Home, End, Up, Down, Left, Right), function keys F1..F12, search shortcuts, transparent thumb Enter (`a!(Transparent)`).

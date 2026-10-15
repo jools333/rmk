@@ -271,7 +271,7 @@ impl<'a> Keyboard<'a> {
         }
     }
 
-    fn has_unresolved_morse_key(&self) -> bool {
+    pub(crate) fn has_unresolved_morse_key(&self) -> bool {
         self.held_buffer.keys.iter().any(|k| {
             k.action.is_morse()
                 && matches!(
