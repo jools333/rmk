@@ -46,7 +46,7 @@ quick_tap_timeout = "180ms"
 enable_flow_tap = true
 unilateral_tap = true
 permissive_hold = true
-hold_timeout = "80ms"
+hold_timeout = "100ms"
 gap_timeout = "180ms"
 quick_tap_timeout = "180ms"
 

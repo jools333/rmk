@@ -30,11 +30,11 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     .with_quick_tap_timeout_ms(Some(180))
     .with_enable_flow_tap(Some(true));
 
-    // Profile 0: Fast hold-timeout for R (Sniper mode: 80ms vs default 200ms)
+    // Profile 0: Fast hold-timeout for R (Sniper mode: 100ms vs default 200ms)
     let sniper_profile = MorseProfile::new(
         Some(true),                      // unilateral_tap: true (setting 26)
         Some(MorseMode::PermissiveHold), // permissive_hold: true (setting 22)
-        Some(80u16),                     // hold timeout: 80ms for fast sniper mode activation
+        Some(100u16),                    // hold timeout: 100ms for fast sniper mode activation
         Some(180u16),                    // gap timeout: 180ms (setting 25)
     )
     .with_quick_tap_timeout_ms(Some(180))
