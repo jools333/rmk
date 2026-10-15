@@ -3,7 +3,7 @@ use rmk::keyboard::combo::{Combo, ComboConfig};
 use rmk::types::constants::COMBO_MAX_NUM;
 use rmk::types::modifier::ModifierCombination;
 use rmk::types::morse::{MorseMode, MorseProfile};
-use rmk::{k, lt, macros, wm};
+use rmk::{k, ltp, macros, wm};
 
 pub fn get_default_behavior_config() -> BehaviorConfig {
     let mut behavior_config = BehaviorConfig::default();
@@ -30,6 +30,18 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     .with_quick_tap_timeout_ms(Some(180))
     .with_enable_flow_tap(Some(true));
 
+    // Profile 0: Fast hold-timeout for R (Sniper mode: 80ms vs default 200ms)
+    let sniper_profile = MorseProfile::new(
+        Some(true),                      // unilateral_tap: true (setting 26)
+        Some(MorseMode::PermissiveHold), // permissive_hold: true (setting 22)
+        Some(80u16),                     // hold timeout: 80ms for fast sniper mode activation
+        Some(180u16),                    // gap timeout: 180ms (setting 25)
+    )
+    .with_quick_tap_timeout_ms(Some(180))
+    .with_enable_flow_tap(Some(true));
+
+    let _ = behavior_config.morse.profiles.push(sniper_profile);
+
     behavior_config.one_shot.timeout = embassy_time::Duration::from_millis(1000);
     behavior_config.tap.tap_interval = 20;
     behavior_config.tap.tap_capslock_interval = 20;
@@ -48,9 +60,9 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             wm!(Kc3, ModifierCombination::LGUI),
             None,
         ))),
-        // 3. lt!(6, R) + U -> Win+4 (App 4)
+        // 3. ltp!(6, R, 0) + U -> Win+4 (App 4)
         Some(Combo::new(ComboConfig::new(
-            [lt!(6, R), k!(U)],
+            [ltp!(6, R, 0), k!(U)],
             wm!(Kc4, ModifierCombination::RGUI),
             None,
         ))),
