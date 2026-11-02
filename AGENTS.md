@@ -176,7 +176,7 @@ We enhanced RMK upstream (`feature/multi-dongle-bonds`, embedded in `rmk-upstrea
 - `C + ,` -> `Alt+Tab` (Window Switch)
 - `X + .` -> Macro 1 (`=>`)
 - `X + /` -> `Win+Shift+Y` (VPN 2 Toggle)
-- `Delete + Backspace` -> `Ctrl+F12` (Global Search)
+- `Delete + Backspace` -> `RGui` (Win)
 
 **Combo Engine Enhancements**:
 - Cross-Layer Matching: Combos match against base layer actions (Layer 0) even from Mouse or Symbol layers.

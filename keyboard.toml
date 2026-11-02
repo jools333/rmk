@@ -70,7 +70,7 @@ combos = [
     { actions = ["C", "Comma"], output = "WM(Tab, LAlt)" },
     { actions = ["X", "Dot"], output = "MACRO(1)" },
     { actions = ["X", "Slash"], output = "WM(Y, LShift | LGui)" },
-    { actions = ["Delete", "Backspace"], output = "WM(F12, LCtrl)" },
+    { actions = ["Delete", "Backspace"], output = "RGui" },
 ]
 
 [[behavior.macro.macros]]

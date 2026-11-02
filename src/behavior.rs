@@ -114,10 +114,10 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             wm!(Y, ModifierCombination::LSHIFT | ModifierCombination::LGUI),
             None,
         ))),
-        // 14. Delete + Backspace -> Ctrl+F12 (Search, клавиши 37 и 40 на больших пальцах)
+        // 14. Delete + Backspace -> RGui (клавиши 37 и 40 на больших пальцах)
         Some(Combo::new(ComboConfig::new(
             [k!(Delete), k!(Backspace)],
-            wm!(F12, ModifierCombination::LCTRL),
+            k!(RGui),
             None,
         ))),
         None,
