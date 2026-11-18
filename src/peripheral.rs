@@ -62,7 +62,7 @@ fn build_sdc<'d, const N: usize>(
         .support_phy_update_peripheral()
         .support_le_2m_phy()
         .support_connection_subrating_peripheral()
-        .default_tx_power(8)?
+        .default_tx_power(0)?
         .peripheral_count(1)?
         .buffer_cfg(L2CAP_MTU as u16, L2CAP_MTU as u16, L2CAP_TXQ, L2CAP_RXQ)?
         .build(p, rng, mpsl, mem)
@@ -151,8 +151,8 @@ async fn main(spawner: Spawner) {
         saadc,
         [AnalogEventType::Battery],
         [0],
-        embassy_time::Duration::from_secs(12),
-        None,
+        embassy_time::Duration::from_secs(30),
+        Some(embassy_time::Duration::from_secs(120)),
     );
     let mut battery_processor = BatteryProcessor::new(2000, 2806);
     let mut watchdog_runner = Nrf52Watchdog::default_runner(p.WDT);

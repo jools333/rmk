@@ -3,7 +3,7 @@
 //! Provides natural momentum-based scrolling with friction decay,
 //! velocity smoothing, and instantaneous touch-braking.
 
-use embassy_time::Instant;
+use embassy_time::{Duration, Instant};
 
 /// Configuration for inertial / kinetic scrolling.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -85,6 +85,21 @@ impl InertialScroller {
     /// Check if inertial coasting is currently active.
     pub fn is_coasting(&self) -> bool {
         self.coasting
+    }
+
+    /// Next deadline at which `tick` needs to run, or `None` when idle.
+    pub fn next_deadline(&self) -> Option<Instant> {
+        if !self.config.enabled {
+            return None;
+        }
+        if self.coasting {
+            return Some(
+                self.last_tick_time
+                    .map_or_else(Instant::now, |t| t + Duration::from_millis(12)),
+            );
+        }
+        self.last_motion_time
+            .map(|t| t + Duration::from_millis((self.config.release_timeout_ms as u64).saturating_add(1)))
     }
 
     /// Handle physical sensor motion event while in scroll mode.

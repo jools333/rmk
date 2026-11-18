@@ -43,11 +43,8 @@ pub(crate) async fn run(server: &Server<'_>, conn: &GattConnection<'_, '_, Defau
     use crate::custom_message::CustomMessageTarget;
     use crate::event::{EventSubscriber, SubscribableEvent};
 
-    let queue: Channel<NoopRawMutex, DongleEvent, 8> = Channel::new();
-    let mut action = ActionEvent::subscriber();
-    let mut modifier = ModifierEvent::subscriber();
+    let queue: Channel<NoopRawMutex, DongleEvent, 16> = Channel::new();
     let mut layer = LayerChangeEvent::subscriber();
-    let mut wpm = WpmUpdateEvent::subscriber();
     let mut sleep = SleepStateEvent::subscriber();
     let mut battery = BatteryStatusEvent::subscriber();
     #[cfg(feature = "split")]
@@ -66,11 +63,10 @@ pub(crate) async fn run(server: &Server<'_>, conn: &GattConnection<'_, '_, Defau
                 #[cfg(not(feature = "split"))]
                 core::future::pending::<DongleEvent>().await
             };
+            // Only forward state events that the dongle actually uses (layer, sleep, battery);
+            // skipping per-keystroke Action/Modifier/WPM events prevents BLE flood and queue drops.
             let event = futures::select_biased! {
-                e = action.next_event().fuse() => DongleEvent::Action(e),
-                e = modifier.next_event().fuse() => DongleEvent::Modifier(e),
                 e = layer.next_event().fuse() => DongleEvent::Layer(e),
-                e = wpm.next_event().fuse() => DongleEvent::Wpm(e),
                 e = sleep.next_event().fuse() => DongleEvent::Sleep(e),
                 e = battery.next_event().fuse() => DongleEvent::Battery(e),
                 e = next_peripheral_battery.fuse() => e,

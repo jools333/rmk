@@ -258,7 +258,7 @@ where
                 min_connection_interval: Duration::from_micros(7500),
                 max_connection_interval: Duration::from_micros(7500),
                 max_latency: 0,
-                supervision_timeout: Duration::from_secs(30),
+                supervision_timeout: Duration::from_secs(10),
                 ..Default::default()
             },
             scan_config: ScanConfig {
@@ -521,8 +521,10 @@ where
                     match postcard::from_bytes::<DongleEvent>(data) {
                         Ok(event) => {
                             #[cfg(feature = "vial")]
-                            if let DongleEvent::Layer(e) = &event {
-                                self.router.set_active_layer(e.0);
+                            match &event {
+                                DongleEvent::Layer(e) => self.router.set_active_layer(e.0),
+                                DongleEvent::Sleep(e) => self.router.set_sleeping(e.0),
+                                _ => {}
                             }
                             publish_event(event);
                         }

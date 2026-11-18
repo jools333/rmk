@@ -32,7 +32,7 @@ use crate::ble::sleep::{report_activity, request_sleep};
 use crate::channel::{BLE_REPORT_CHANNEL, LED_SIGNAL};
 use crate::config::{BleBatteryConfig, DeviceConfig, RmkConfig};
 use crate::core_traits::Runnable;
-use crate::event::SubscribableEvent;
+use crate::event::{EventSubscriber, SleepStateEvent, SubscribableEvent};
 use crate::hid::{HidWriterTrait, run_led_reader};
 #[cfg(feature = "split")]
 use crate::split::PeripheralMatrixConfig;
@@ -282,11 +282,7 @@ async fn run_ble_keyboard<
     let profile_manager = &mut profile_manager;
 
     let connection_loop = async {
-        #[cfg(feature = "dongle")]
-        let mut dongle_rotation_count: u8 = 0;
-
         loop {
-            // On a dongle slot, advertise directed to the bonded dongle or
             // On a dongle slot, advertise Adv::DongleSeeking so both bonded
             // and unbonded dongles can discover and connect immediately; on host profiles, plain HID.
             #[cfg(feature = "dongle")]
@@ -300,16 +296,9 @@ async fn run_ble_keyboard<
             #[cfg(not(feature = "dongle"))]
             let adv = Adv::Host { name: product_name };
 
-            // Determine advertising duration: alternate quickly between dongles if multiple exist
-            #[cfg(feature = "dongle")]
-            let adv_duration = if is_dongle
-                && profile_manager.next_dongle_slot(crate::state::current_profile()).is_some()
-            {
-                Duration::from_secs(6)
-            } else {
-                Duration::from_secs(300)
-            };
-            #[cfg(not(feature = "dongle"))]
+            // All bonded dongle keys are already loaded into the stack by `update_stack_bonds()`,
+            // and `Adv::DongleSeeking` is identical across slots, so we can use a single 300s
+            // window without rotating slots or writing ActiveBleProfile to flash every 6 seconds.
             let adv_duration = Duration::from_secs(300);
 
             // Wait for 10ms to ensure the USB is checked
@@ -325,10 +314,6 @@ async fn run_ble_keyboard<
             {
                 Either::First(Ok(conn)) => {
                     info!("[adv] connection established");
-                    #[cfg(feature = "dongle")]
-                    {
-                        dongle_rotation_count = 0;
-                    }
                     if let Err(e) = conn.raw().set_bondable(true) {
                         error!("Set bondable error: {:?}", e);
                     }
@@ -408,19 +393,6 @@ async fn run_ble_keyboard<
                     }
                 }
                 Either::First(Err(BleHostError::BleHost(Error::Timeout))) => {
-                    #[cfg(feature = "dongle")]
-                    if is_dongle {
-                        if let Some(next_slot) = profile_manager.next_dongle_slot(crate::state::current_profile()) {
-                            const MAX_DONGLE_ROTATIONS: u8 = 10;
-                            if dongle_rotation_count < MAX_DONGLE_ROTATIONS {
-                                dongle_rotation_count += 1;
-                                info!("[dongle] rotation ({}): switching adv to dongle slot {}", dongle_rotation_count, next_slot);
-                                profile_manager.switch_profile(next_slot).await;
-                                continue;
-                            }
-                            dongle_rotation_count = 0;
-                        }
-                    }
                     warn!("Advertising timeout, sleep and wait for any key");
                     set_ble_state(BleState::Inactive);
 
@@ -443,12 +415,7 @@ async fn run_ble_keyboard<
                     error!("Advertise error: {:?}", e);
                     Timer::after_millis(200).await;
                 }
-                Either::Second(()) => {
-                    #[cfg(feature = "dongle")]
-                    {
-                        dongle_rotation_count = 0;
-                    }
-                }
+                Either::Second(()) => {}
             };
 
             // Skip the Inactive transition if we never moved off Advertising
@@ -870,6 +837,40 @@ pub(crate) async fn set_conn_params<
     core::future::pending::<()>().await;
 }
 
+/// Adjust dongle <-> keyboard connection latency based on sleep state.
+/// Awake: 7.5 ms interval with 0 slave latency for instant trackball response.
+/// Sleep: 7.5 ms interval with slave latency 60 (~457 ms wakeup period) to save battery.
+#[cfg(feature = "dongle")]
+async fn dongle_sleep_conn_params<
+    'a,
+    'b,
+    C: Controller + ControllerCmdSync<LeReadLocalSupportedFeatures>,
+    P: PacketPool,
+>(
+    stack: &Stack<'_, C, P>,
+    conn: &GattConnection<'a, 'b, P>,
+) {
+    let mut sleep_events = SleepStateEvent::subscriber();
+    let mut sleeping = crate::state::current_sleep_state();
+    let mut applied_sleeping = false;
+
+    loop {
+        if sleeping != applied_sleeping {
+            let max_latency = if sleeping { 60 } else { 0 };
+            let params = RequestedConnParams {
+                min_connection_interval: Duration::from_micros(7500),
+                max_connection_interval: Duration::from_micros(7500),
+                max_latency,
+                supervision_timeout: Duration::from_secs(10),
+                ..Default::default()
+            };
+            update_conn_params(stack, conn.raw(), &params).await;
+            applied_sleeping = sleeping;
+        }
+        sleeping = sleep_events.next_event().await.0;
+    }
+}
+
 /// Serve one host keyboard connection.
 async fn serve_keyboard_connection<
     'a,
@@ -924,7 +925,7 @@ async fn serve_keyboard_connection<
 
     let conn_params_task = async {
         if dongle_link {
-            core::future::pending::<()>().await
+            dongle_sleep_conn_params(stack, conn).await
         } else {
             set_conn_params(stack, conn).await
         }

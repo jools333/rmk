@@ -10,11 +10,14 @@ use rmk_types::keycode::HidKeyCode;
 #[cfg(feature = "_ble")]
 use crate::ble::sleep::report_activity;
 use crate::channel::send_hid_report;
+use crate::core_traits::Runnable;
 use crate::event::{
-    Axis, AxisEvent, AxisValType, PointingEvent, PointingProcessorEvent, PointingSetCpiEvent, SleepStateEvent,
+    Axis, AxisEvent, AxisValType, ConnectionStatusChangeEvent, PointingEvent, PointingProcessorEvent,
+    PointingSetCpiEvent, SleepStateEvent,
 };
 use crate::hid::{KeyboardReport, MouseReport, Report};
 use crate::keymap::KeyMap;
+use crate::processor::DeadlineProcessor;
 
 pub mod accel;
 pub use accel::*;
@@ -150,6 +153,10 @@ impl<S: PointingDriver> PointingDevice<S> {
             }
             Err(_e) => {
                 warn!("PointingDevice {}: Read motion error", self.id);
+                if self.sensor.motion_gpio().is_some() {
+                    // Back off when motion GPIO is asserted during an SPI error so we don't spin at 100% CPU
+                    Timer::after(Duration::from_millis(10)).await;
+                }
             }
         }
     }
@@ -532,7 +539,8 @@ impl Default for PointingProcessorConfig {
 }
 
 /// PointingProcessor that converts motion events to mouse reports
-#[processor(subscribe = [PointingEvent, PointingProcessorEvent], poll_interval = 12)]
+#[processor(subscribe = [PointingEvent, PointingProcessorEvent, SleepStateEvent, ConnectionStatusChangeEvent])]
+#[::rmk::macros::runnable_generated]
 pub struct PointingProcessor<'a> {
     /// Reference to the keymap (used for mouse_buttons)
     keymap: &'a KeyMap<'a>,
@@ -547,6 +555,8 @@ pub struct PointingProcessor<'a> {
     scroller: Option<InertialScroller>,
     /// Pending mouse report coalesced when transport channel is busy
     pending_mouse: Option<MouseReport>,
+    /// Next retry timestamp for flushing `pending_mouse`
+    pending_retry_at: Option<Instant>,
 }
 
 impl<'a> PointingProcessor<'a> {
@@ -562,6 +572,7 @@ impl<'a> PointingProcessor<'a> {
             accelerator,
             scroller,
             pending_mouse: None,
+            pending_retry_at: None,
         }
     }
 
@@ -593,21 +604,29 @@ impl<'a> PointingProcessor<'a> {
         };
 
         match crate::channel::try_send_mouse_report(to_send) {
-            Ok(()) => {}
+            Ok(()) => {
+                self.pending_retry_at = None;
+            }
             Err(unsent) => {
                 self.pending_mouse = Some(unsent);
+                self.pending_retry_at = Some(Instant::now() + Duration::from_millis(12));
             }
         }
     }
 
     /// Periodic tick for background tasks such as inertial / kinetic scrolling and flushing coalesced reports
-    async fn poll(&mut self) {
+    async fn flush_pending_and_tick(&mut self) {
         // Flush any pending coalesced report when the transport channel frees up
-        if let Some(pending) = self.pending_mouse.take() {
+        if let Some(mut pending) = self.pending_mouse.take() {
+            // Always refresh button state so a released button is never re-sent as pressed
+            pending.buttons = self.keymap.mouse_buttons();
             match crate::channel::try_send_mouse_report(pending) {
-                Ok(()) => {}
+                Ok(()) => {
+                    self.pending_retry_at = None;
+                }
                 Err(unsent) => {
                     self.pending_mouse = Some(unsent);
+                    self.pending_retry_at = Some(Instant::now() + Duration::from_millis(12));
                 }
             }
         }
@@ -652,6 +671,26 @@ impl<'a> PointingProcessor<'a> {
                 self.accumulator.reset_x();
                 self.accumulator.reset_y();
             }
+        }
+    }
+
+    async fn on_sleep_state_event(&mut self, event: SleepStateEvent) {
+        if event.0 {
+            self.clear_pending_state();
+        }
+    }
+
+    async fn on_connection_status_change_event(&mut self, _event: ConnectionStatusChangeEvent) {
+        self.clear_pending_state();
+    }
+
+    fn clear_pending_state(&mut self) {
+        self.pending_mouse = None;
+        self.pending_retry_at = None;
+        self.accumulator.reset_x();
+        self.accumulator.reset_y();
+        if let Some(ref mut scroller) = self.scroller {
+            scroller.cancel();
         }
     }
 
@@ -801,6 +840,28 @@ impl<'a> PointingProcessor<'a> {
                 accel.reset();
             }
         }
+    }
+}
+
+impl<'a> DeadlineProcessor for PointingProcessor<'a> {
+    fn deadline(&self) -> Option<Instant> {
+        let scroll_deadline = self.scroller.as_ref().and_then(|s| s.next_deadline());
+        match (self.pending_retry_at, scroll_deadline) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        }
+    }
+
+    async fn on_deadline(&mut self) {
+        self.flush_pending_and_tick().await;
+    }
+}
+
+impl<'a> Runnable for PointingProcessor<'a> {
+    async fn run(&mut self) -> ! {
+        self.deadline_loop().await
     }
 }
 

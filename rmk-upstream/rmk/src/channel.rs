@@ -75,9 +75,13 @@ pub(crate) fn try_send_hid_report(report: Report) {
     }
 }
 
-/// Try to send a mouse report without blocking. If the channel is full or unavailable, returns Err(report).
+/// Try to send a mouse report without blocking. If the channel is busy (>= 2 queued
+/// reports, reserving headroom for keyboard reports) or unavailable, returns Err(report).
 pub(crate) fn try_send_mouse_report(report: MouseReport) -> Result<(), MouseReport> {
     if let Some((_, ch)) = active_report_channel() {
+        if ch.len() >= 2 {
+            return Err(report);
+        }
         ch.try_send(Report::MouseReport(report)).map_err(|e| match e {
             TrySendError::Full(Report::MouseReport(r)) => r,
             _ => report,

@@ -102,7 +102,7 @@ impl Adv<'_> {
         AdvertisementParameters {
             primary_phy: phy,
             secondary_phy: phy,
-            tx_power: TxPower::Plus8dBm,
+            tx_power: TxPower::Plus4dBm,
             interval_min: interval,
             interval_max: interval,
             ..Default::default()

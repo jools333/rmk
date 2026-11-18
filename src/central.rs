@@ -84,7 +84,7 @@ fn build_sdc<'d, const N: usize>(
         .support_phy_update_peripheral()
         .support_le_2m_phy()
         .support_connection_subrating_central()
-        .default_tx_power(8)?
+        .default_tx_power(4)?
         // 1 split peripheral (Left half)
         .central_count(1)?
         // 1 link toward dongle or host
@@ -218,8 +218,8 @@ async fn main(spawner: Spawner) {
     // SCK: P0.08, SDIO: P0.17, CS: P0.20, MOTION: P0.06
     let pmw3610_config = Pmw3610Config {
         res_cpi: 1200,
-        smart_mode: true,
-        force_awake: true,
+        smart_mode: false,
+        force_awake: false,
         ..Default::default()
     };
     let pmw3610_sck = Output::new(p.P0_08, Level::High, OutputDrive::Standard);
@@ -254,8 +254,8 @@ async fn main(spawner: Spawner) {
         saadc,
         [AnalogEventType::Battery],
         [0],
-        embassy_time::Duration::from_secs(12),
-        None,
+        embassy_time::Duration::from_secs(30),
+        Some(embassy_time::Duration::from_secs(120)),
     );
     let mut batt_proc = BatteryProcessor::new(2000, 2806);
 

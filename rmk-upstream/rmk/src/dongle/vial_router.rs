@@ -35,6 +35,8 @@ pub struct DongleRouter {
     link_dropped: Signal<RawMutex, ()>,
     /// Cached active keyboard layer pushed by `DongleEvent::Layer`.
     active_layer: AtomicU8,
+    /// Whether the connected keyboard is currently in sleep mode (`DongleEvent::Sleep`).
+    sleeping: AtomicBool,
 }
 
 impl DongleRouter {
@@ -45,6 +47,7 @@ impl DongleRouter {
             link_connected: AtomicBool::new(false),
             link_dropped: Signal::new(),
             active_layer: AtomicU8::new(0),
+            sleeping: AtomicBool::new(false),
         }
     }
 
@@ -58,11 +61,17 @@ impl DongleRouter {
         self.active_layer.store(layer, Ordering::Relaxed);
     }
 
+    /// Update cached sleep state received from keyboard via `DongleEvent::Sleep`.
+    pub(super) fn set_sleeping(&self, sleeping: bool) {
+        self.sleeping.store(sleeping, Ordering::Relaxed);
+    }
+
     /// Called by the dongle task once it is relaying: open the host→keyboard path.
     pub(super) fn link_up(&self) {
         // `link_dropped` latches; clear it and the queue before the first forward.
         self.link_dropped.reset();
         self.to_keyboard.clear();
+        self.sleeping.store(false, Ordering::Relaxed);
         self.link_connected.store(true, Ordering::Relaxed);
     }
 
@@ -70,6 +79,7 @@ impl DongleRouter {
     /// drop the queue, so a keyboard connecting later can't replay a stale request.
     pub(super) fn link_down(&self) {
         self.link_connected.store(false, Ordering::Relaxed);
+        self.sleeping.store(false, Ordering::Relaxed);
         self.active_layer.store(0, Ordering::Relaxed);
         self.link_dropped.signal(());
         self.to_keyboard.clear();
@@ -108,7 +118,7 @@ impl DongleRouter {
         // Intercept [0x53, 0x03] (Get Active Layer): answer immediately from locally
         // cached active layer to avoid recurring 32-byte BLE round-trips that stall trackball reports.
         if report[0] == 0x53 && report[1] == 0x03 {
-            if !self.link_connected.load(Ordering::Relaxed) {
+            if !self.link_connected.load(Ordering::Relaxed) || self.sleeping.load(Ordering::Relaxed) {
                 // Keyboard link is offline/asleep: echo 0xFF as indicator
                 report[0] = 0xFF;
                 let _ = self.to_host.send(report).await;
