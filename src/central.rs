@@ -40,7 +40,6 @@ use rmk::input_device::pointing::{
 };
 use rmk::keyboard::Keyboard;
 use rmk::matrix::Matrix;
-use rmk::processor::builtin::wpm::WpmProcessor;
 use rmk::split::PeripheralMatrixConfig;
 use rmk::usb::UsbTransport;
 use rmk::watchdog::Nrf52Watchdog;
@@ -276,7 +275,6 @@ async fn main(spawner: Spawner) {
     )
     .with_host_service(&host_service);
 
-    let mut wpm_processor = WpmProcessor::new();
     let mut watchdog_runner = Nrf52Watchdog::default_runner(p.WDT);
 
     info!("Charybdis Right Half initialized. Running...");
@@ -291,7 +289,6 @@ async fn main(spawner: Spawner) {
         storage,
         usb_transport,
         ble_transport,
-        wpm_processor,
         keyboard,
         watchdog_runner
     )

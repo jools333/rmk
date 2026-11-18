@@ -39,7 +39,11 @@ impl HostGattHandler {
                 debug!("Got Vial packet: {:?}", data);
                 let mut message = [0u8; 32];
                 message.copy_from_slice(data);
-                VIAL_BLE_RX_CHANNEL.send(message).await;
+                if VIAL_BLE_RX_CHANNEL.try_send(message).is_err() {
+                    // Drop oldest unread packet so GATT event handling never deadlocks
+                    let _ = VIAL_BLE_RX_CHANNEL.try_receive();
+                    let _ = VIAL_BLE_RX_CHANNEL.try_send(message);
+                }
             } else {
                 warn!("Wrong Vial packet data: {:?}", data);
             }

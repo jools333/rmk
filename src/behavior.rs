@@ -131,7 +131,7 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     behavior_config.combo = CombosConfig {
         combos,
         timeout: embassy_time::Duration::from_millis(60),
-        prior_idle_time: None,
+        prior_idle_time: Some(embassy_time::Duration::from_millis(125)),
         switch_to_default_layer: true,
     };
 

@@ -180,6 +180,10 @@ def query_active_layer(fd: int) -> int | None:
     req[0] = 0x53  # Vial layer stats command
     req[1] = 0x03  # Subcommand 0x03: Get Active Layer
     try:
+        # Drain any stale buffered reports from a prior timed-out request
+        while select.select([fd], [], [], 0)[0]:
+            if not os.read(fd, 64):
+                break
         os.write(fd, req)
         r, _, _ = select.select([fd], [], [], 0.08)  # 80ms safety timeout
         if not r:

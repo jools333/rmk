@@ -75,14 +75,12 @@ combos = [
 
 [[behavior.macro.macros]]
 operations = [
-    { operation = "tap", keycode = "Minus" },
-    { operation = "tap", keycode = "RightBracket" },
+    { operation = "text", text = "->" },
 ]
 
 [[behavior.macro.macros]]
 operations = [
-    { operation = "tap", keycode = "Equal" },
-    { operation = "tap", keycode = "RightBracket" },
+    { operation = "text", text = "=>" },
 ]
 
 [[behavior.macro.macros]]
@@ -94,4 +92,25 @@ operations = [
 operations = [
     { operation = "text", text = "gT" },
 ]
+
+[split]
+connection = "ble"
+
+[split.central]
+rows = 4
+cols = 6
+row_offset = 0
+col_offset = 6
+battery_adc_pin = "P0_04"
+battery_user_description = "Right"
+matrix = { row2col = true }
+
+[[split.peripheral]]
+rows = 4
+cols = 6
+row_offset = 0
+col_offset = 0
+battery_adc_pin = "P0_04"
+battery_user_description = "Left"
+matrix = { row2col = true }
 

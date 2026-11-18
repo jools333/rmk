@@ -1,5 +1,17 @@
 use core::cell::RefCell;
-use core::sync::atomic::{AtomicU16, Ordering};
+use core::sync::atomic::{AtomicU8, AtomicU16, Ordering};
+
+static CURRENT_ACTIVE_LAYER: AtomicU8 = AtomicU8::new(0);
+
+/// Returns the most recently published active layer.
+pub(crate) fn current_active_layer() -> u8 {
+    CURRENT_ACTIVE_LAYER.load(Ordering::Relaxed)
+}
+
+fn publish_layer_change(layer: u8) {
+    CURRENT_ACTIVE_LAYER.store(layer, Ordering::Relaxed);
+    publish_event(LayerChangeEvent::new(layer));
+}
 
 // =========================================================================
 // Layer Keystroke Statistics Tracking
@@ -209,7 +221,7 @@ impl KeyMapInner<'_> {
         // With no layer key held, the activated layer follows the default; a
         // held layer masks the change and observers see nothing.
         if before != after {
-            publish_event(LayerChangeEvent::new(after));
+            publish_layer_change(after);
         }
     }
 
@@ -271,6 +283,14 @@ impl KeyMapInner<'_> {
     }
 
     fn get_action_with_layer_cache(&mut self, event: KeyboardEvent) -> KeyAction {
+        self.get_action_with_layer_cache_inner(event, true)
+    }
+
+    fn get_action_with_layer_cache_no_stats(&mut self, event: KeyboardEvent) -> KeyAction {
+        self.get_action_with_layer_cache_inner(event, false)
+    }
+
+    fn get_action_with_layer_cache_inner(&mut self, event: KeyboardEvent, record_stats: bool) -> KeyAction {
         if !event.pressed {
             let layer = self.pop_layer_from_cache(event.pos);
             return self.get_action_at(event.pos, layer as usize);
@@ -283,7 +303,7 @@ impl KeyMapInner<'_> {
                     continue;
                 }
                 self.save_layer_cache(event.pos, layer_idx as u8);
-                if let KeyboardEventPos::Key(k) = event.pos {
+                if record_stats && let KeyboardEventPos::Key(k) = event.pos {
                     record_key_press(layer_idx, k.row as usize, k.col as usize);
                 }
                 return action;
@@ -295,7 +315,7 @@ impl KeyMapInner<'_> {
 
         // Keep release on the same transparent default-layer action as press.
         self.save_layer_cache(event.pos, self.behavior.default_layer);
-        if let KeyboardEventPos::Key(k) = event.pos {
+        if record_stats && let KeyboardEventPos::Key(k) = event.pos {
             record_key_press(self.behavior.default_layer as usize, k.row as usize, k.col as usize);
         }
         KeyAction::No
@@ -358,7 +378,7 @@ impl KeyMapInner<'_> {
         if self.num_layer > 3 {
             self.layer_state[3] = self.layer_state[1] && self.layer_state[2];
             let layer = self.get_activated_layer();
-            publish_event(LayerChangeEvent::new(layer));
+            publish_layer_change(layer);
         }
     }
 
@@ -368,7 +388,7 @@ impl KeyMapInner<'_> {
                 self.layer_state[tri_layer[0] as usize] && self.layer_state[tri_layer[1] as usize];
         }
         let layer = self.get_activated_layer();
-        publish_event(LayerChangeEvent::new(layer));
+        publish_layer_change(layer);
     }
 
     fn activate_layer(&mut self, layer_num: u8) {
@@ -496,6 +516,10 @@ impl<'a> KeyMap<'a> {
 
     pub(crate) fn get_action_with_layer_cache(&self, event: KeyboardEvent) -> KeyAction {
         self.inner.borrow_mut().get_action_with_layer_cache(event)
+    }
+
+    pub(crate) fn get_action_with_layer_cache_no_stats(&self, event: KeyboardEvent) -> KeyAction {
+        self.inner.borrow_mut().get_action_with_layer_cache_no_stats(event)
     }
 
     pub(crate) fn get_action_at(&self, pos: KeyboardEventPos, layer: usize) -> KeyAction {

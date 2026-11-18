@@ -448,7 +448,7 @@ impl<'a> Keyboard<'a> {
                 debug!("Clean buffer, then process current key normally");
                 let key_action = if keyboard_state_updated && !is_combo {
                     // The key_action needs to be updated due to the morse key might be triggered
-                    &self.keymap.get_action_with_layer_cache(event)
+                    &self.keymap.get_action_with_layer_cache_no_stats(event)
                 } else {
                     key_action
                 };
@@ -475,7 +475,7 @@ impl<'a> Keyboard<'a> {
                 // Process current key normally
                 let key_action = if keyboard_state_updated && !is_combo {
                     // The key_action needs to be updated due to the morse key might be triggered
-                    &self.keymap.get_action_with_layer_cache(event)
+                    &self.keymap.get_action_with_layer_cache_no_stats(event)
                 } else {
                     key_action
                 };
@@ -483,7 +483,7 @@ impl<'a> Keyboard<'a> {
             }
             KeyBehaviorDecision::FlowTap => {
                 let key_action = if keyboard_state_updated && !is_combo {
-                    &self.keymap.get_action_with_layer_cache(event)
+                    &self.keymap.get_action_with_layer_cache_no_stats(event)
                 } else {
                     key_action
                 };
@@ -567,7 +567,7 @@ impl<'a> Keyboard<'a> {
                 }
                 HeldKeyDecision::PermissiveHold | HeldKeyDecision::HoldOnOtherKeyPress => {
                     if let Some(mut held_key) = self.held_buffer.remove_if(|k| k.event.pos == pos) {
-                        let action = self.keymap.get_action_with_layer_cache(held_key.event);
+                        let action = self.keymap.get_action_with_layer_cache_no_stats(held_key.event);
 
                         if action.is_morse() {
                             // Permissive hold of held key is triggered
@@ -610,7 +610,7 @@ impl<'a> Keyboard<'a> {
                         // Always re-evaluate action based on current layer state.
                         // A prior layer change (e.g. permissive hold activating a layer)
                         // may have changed what action this key maps to.
-                        let key_action = self.keymap.get_action_with_layer_cache(held_key.event);
+                        let key_action = self.keymap.get_action_with_layer_cache_no_stats(held_key.event);
                         if key_action != held_key.action {
                             keyboard_state_updated = true;
                         }
@@ -680,7 +680,7 @@ impl<'a> Keyboard<'a> {
                     if trigger_normal && let Some(held_key) = self.held_buffer.remove_if(|k| k.event.pos == pos) {
                         debug!("Cleaning buffered normal key");
                         let action = if keyboard_state_updated {
-                            self.keymap.get_action_with_layer_cache(held_key.event)
+                            self.keymap.get_action_with_layer_cache_no_stats(held_key.event)
                         } else {
                             held_key.action
                         };

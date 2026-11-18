@@ -832,16 +832,14 @@ pub(crate) async fn set_conn_params<
         .await;
     }
 
-    // Wait forever. This is because we want the conn params setting can be interrupted when the connection is lost.
-    // So this task shouldn't quit after setting the conn params.
-    core::future::pending::<()>().await;
+    // Keep connection latency aligned with sleep state on direct BLE host links too
+    sleep_conn_params_loop(stack, conn, Duration::from_secs(6)).await;
 }
 
-/// Adjust dongle <-> keyboard connection latency based on sleep state.
+/// Adjust keyboard <-> peer connection latency based on sleep state.
 /// Awake: 7.5 ms interval with 0 slave latency for instant trackball response.
 /// Sleep: 7.5 ms interval with slave latency 60 (~457 ms wakeup period) to save battery.
-#[cfg(feature = "dongle")]
-async fn dongle_sleep_conn_params<
+async fn sleep_conn_params_loop<
     'a,
     'b,
     C: Controller + ControllerCmdSync<LeReadLocalSupportedFeatures>,
@@ -849,6 +847,7 @@ async fn dongle_sleep_conn_params<
 >(
     stack: &Stack<'_, C, P>,
     conn: &GattConnection<'a, 'b, P>,
+    supervision_timeout: Duration,
 ) {
     let mut sleep_events = SleepStateEvent::subscriber();
     let mut sleeping = crate::state::current_sleep_state();
@@ -861,7 +860,7 @@ async fn dongle_sleep_conn_params<
                 min_connection_interval: Duration::from_micros(7500),
                 max_connection_interval: Duration::from_micros(7500),
                 max_latency,
-                supervision_timeout: Duration::from_secs(10),
+                supervision_timeout,
                 ..Default::default()
             };
             update_conn_params(stack, conn.raw(), &params).await;
@@ -869,6 +868,20 @@ async fn dongle_sleep_conn_params<
         }
         sleeping = sleep_events.next_event().await.0;
     }
+}
+
+/// Adjust dongle <-> keyboard connection latency based on sleep state.
+#[cfg(feature = "dongle")]
+async fn dongle_sleep_conn_params<
+    'a,
+    'b,
+    C: Controller + ControllerCmdSync<LeReadLocalSupportedFeatures>,
+    P: PacketPool,
+>(
+    stack: &Stack<'_, C, P>,
+    conn: &GattConnection<'a, 'b, P>,
+) {
+    sleep_conn_params_loop(stack, conn, Duration::from_secs(10)).await;
 }
 
 /// Serve one host keyboard connection.
