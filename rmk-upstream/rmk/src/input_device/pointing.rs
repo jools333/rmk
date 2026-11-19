@@ -12,7 +12,7 @@ use crate::ble::sleep::report_activity;
 use crate::channel::send_hid_report;
 use crate::core_traits::Runnable;
 use crate::event::{
-    Axis, AxisEvent, AxisValType, ConnectionStatusChangeEvent, PointingEvent, PointingProcessorEvent,
+    Axis, AxisEvent, AxisValType, ConnectionStatusChangeEvent, KeyboardEvent, PointingEvent, PointingProcessorEvent,
     PointingSetCpiEvent, SleepStateEvent,
 };
 use crate::hid::{KeyboardReport, MouseReport, Report};
@@ -539,7 +539,7 @@ impl Default for PointingProcessorConfig {
 }
 
 /// PointingProcessor that converts motion events to mouse reports
-#[processor(subscribe = [PointingEvent, PointingProcessorEvent, SleepStateEvent, ConnectionStatusChangeEvent])]
+#[processor(subscribe = [PointingEvent, PointingProcessorEvent, SleepStateEvent, ConnectionStatusChangeEvent, KeyboardEvent])]
 #[::rmk::macros::runnable_generated]
 pub struct PointingProcessor<'a> {
     /// Reference to the keymap (used for mouse_buttons)
@@ -557,6 +557,8 @@ pub struct PointingProcessor<'a> {
     pending_mouse: Option<MouseReport>,
     /// Next retry timestamp for flushing `pending_mouse`
     pending_retry_at: Option<Instant>,
+    /// Timestamp of the last key event, used to suppress typing-induced vibration jitter
+    last_key_time: Option<Instant>,
 }
 
 impl<'a> PointingProcessor<'a> {
@@ -573,6 +575,7 @@ impl<'a> PointingProcessor<'a> {
             scroller,
             pending_mouse: None,
             pending_retry_at: None,
+            last_key_time: None,
         }
     }
 
@@ -684,6 +687,10 @@ impl<'a> PointingProcessor<'a> {
         self.clear_pending_state();
     }
 
+    async fn on_keyboard_event(&mut self, _event: KeyboardEvent) {
+        self.last_key_time = Some(Instant::now());
+    }
+
     fn clear_pending_state(&mut self) {
         self.pending_mouse = None;
         self.pending_retry_at = None;
@@ -737,6 +744,17 @@ impl<'a> PointingProcessor<'a> {
                 // modes that generate mouse reports
                 let mouse_report = match self.current_mode {
                     PointingMode::Cursor(cursor_config) => {
+                        const TYPING_JITTER_WINDOW: Duration = Duration::from_millis(150);
+                        const TYPING_JITTER_THRESHOLD: i16 = 3;
+
+                        if let Some(last_key) = self.last_key_time
+                            && Instant::now().saturating_duration_since(last_key) < TYPING_JITTER_WINDOW
+                            && x.saturating_abs() <= TYPING_JITTER_THRESHOLD
+                            && y.saturating_abs() <= TYPING_JITTER_THRESHOLD
+                        {
+                            return;
+                        }
+
                         if let Some(ref mut scroller) = self.scroller {
                             if scroller.is_coasting() {
                                 scroller.cancel();

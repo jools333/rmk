@@ -11,6 +11,9 @@ channel_size = 16
 pubs = 1
 subs = 2
 
+[event.keyboard]
+subs = 4
+
 [keyboard]
 name = "Charybdis Mini"
 product_name = "Charybdis Mini (RMK)"
