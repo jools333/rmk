@@ -3,7 +3,7 @@ use rmk::keyboard::combo::{Combo, ComboConfig};
 use rmk::types::constants::COMBO_MAX_NUM;
 use rmk::types::modifier::ModifierCombination;
 use rmk::types::morse::{MorseMode, MorseProfile};
-use rmk::{k, ltp, macros, wm};
+use rmk::{k, lt, ltp, macros, wm};
 
 pub fn get_default_behavior_config() -> BehaviorConfig {
     let mut behavior_config = BehaviorConfig::default();
@@ -114,13 +114,18 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             wm!(Y, ModifierCombination::LSHIFT | ModifierCombination::LGUI),
             None,
         ))),
-        // 14. Delete + Backspace -> RGui (клавиши 37 и 40 на больших пальцах)
+        // 14. Delete + Backspace -> Alt+Space (клавиши 37 и 40 на больших пальцах)
         Some(Combo::new(ComboConfig::new(
             [k!(Delete), k!(Backspace)],
-            k!(RGui),
+            wm!(Space, ModifierCombination::LALT),
             None,
         ))),
-        None,
+        // 15. LT(3, Backspace) + Quote -> F12 (быстрое нажатие F12 без ожидания удержания слоя)
+        Some(Combo::new(ComboConfig::new(
+            [lt!(3, Backspace), k!(Quote)],
+            k!(F12),
+            None,
+        ))),
         None,
         None,
         None,
