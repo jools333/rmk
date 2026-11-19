@@ -217,8 +217,8 @@ async fn main(spawner: Spawner) {
     // SCK: P0.08, SDIO: P0.17, CS: P0.20, MOTION: P0.06
     let pmw3610_config = Pmw3610Config {
         res_cpi: 1200,
-        smart_mode: false,
-        force_awake: false,
+        smart_mode: true,
+        force_awake: true,
         ..Default::default()
     };
     let pmw3610_sck = Output::new(p.P0_08, Level::High, OutputDrive::Standard);
