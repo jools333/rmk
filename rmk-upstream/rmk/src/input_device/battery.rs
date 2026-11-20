@@ -101,6 +101,8 @@ pub struct BatteryProcessor {
     adc_divider_total: u32,
     /// Current battery status
     battery_status: BatteryStatus,
+    /// Exponential moving average of raw ADC samples to suppress load-spike jitter
+    filtered_adc: Option<i64>,
 }
 
 impl BatteryProcessor {
@@ -109,7 +111,19 @@ impl BatteryProcessor {
             adc_divider_measured,
             adc_divider_total,
             battery_status: BatteryStatus::Unavailable,
+            filtered_adc: None,
         }
+    }
+
+    #[cfg(feature = "_ble")]
+    fn smooth_adc(&mut self, raw: u16) -> u16 {
+        let sample = raw as i64;
+        let next = match self.filtered_adc {
+            Some(prev) if (sample - prev).abs() <= 150 => (prev * 3 + sample + 2) / 4,
+            _ => sample,
+        };
+        self.filtered_adc = Some(next);
+        next as u16
     }
 
     /// Apply a new battery status: persist on the processor, mirror into
@@ -185,29 +199,32 @@ impl BatteryProcessor {
         trace!("Detected battery ADC value: {:?}", val);
 
         #[cfg(feature = "_ble")]
-        match self.battery_status {
-            // Skip ADC updates while charging
-            BatteryStatus::Available {
-                charge_state: ChargeState::Charging,
-                ..
-            } => {}
-            // Not charging: publish if the percentage changed.
-            BatteryStatus::Available { charge_state, level } => {
-                let battery_percent = self.get_battery_percent(val);
-                if level != Some(battery_percent) {
+        {
+            let smoothed = self.smooth_adc(val);
+            match self.battery_status {
+                // Skip ADC updates while charging
+                BatteryStatus::Available {
+                    charge_state: ChargeState::Charging,
+                    ..
+                } => {}
+                // Not charging: publish if the percentage changed.
+                BatteryStatus::Available { charge_state, level } => {
+                    let battery_percent = self.get_battery_percent(smoothed);
+                    if level != Some(battery_percent) {
+                        self.commit(BatteryStatus::Available {
+                            charge_state,
+                            level: Some(battery_percent),
+                        });
+                    }
+                }
+                // First ADC reading: transition from Unavailable.
+                BatteryStatus::Unavailable => {
+                    let battery_percent = self.get_battery_percent(smoothed);
                     self.commit(BatteryStatus::Available {
-                        charge_state,
+                        charge_state: ChargeState::Unknown,
                         level: Some(battery_percent),
                     });
                 }
-            }
-            // First ADC reading: transition from Unavailable.
-            BatteryStatus::Unavailable => {
-                let battery_percent = self.get_battery_percent(val);
-                self.commit(BatteryStatus::Available {
-                    charge_state: ChargeState::Unknown,
-                    level: Some(battery_percent),
-                });
             }
         }
     }
