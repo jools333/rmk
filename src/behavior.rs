@@ -102,8 +102,12 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             wm!(Space, ModifierCombination::LGUI),
             None,
         ))),
-        // 8. (Empty)
-        None,
+        // 8. Delete + H -> KpMinus
+        Some(Combo::new(ComboConfig::new(
+            [k!(Delete), k!(H)],
+            k!(KpMinus),
+            None,
+        ))),
         // 9. A + Semicolon -> Ctrl+P (Quick Open)
         Some(Combo::new(ComboConfig::new(
             [k!(A), k!(Semicolon)],
@@ -138,7 +142,12 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             k!(F12),
             None,
         ))),
-        None,
+        // 16. Delete + J -> KpEqual
+        Some(Combo::new(ComboConfig::new(
+            [k!(Delete), k!(J)],
+            k!(KpEqual),
+            None,
+        ))),
         None,
         None,
         None,

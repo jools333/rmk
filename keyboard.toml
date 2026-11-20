@@ -76,6 +76,7 @@ combos = [
     { actions = ["V", "M"], output = "WM(Kc2, RGui)" },
     { actions = ["F", "Semicolon"], output = "WM(S, LCtrl)" },
     { actions = ["F", "J"], output = "WM(Space, LGui)" },
+    { actions = ["Delete", "H"], output = "KpMinus" },
     { actions = ["A", "Semicolon"], output = "WM(P, RCtrl)" },
     { actions = ["W", "O"], output = "MACRO(0)" },
     { actions = ["C", "Comma"], output = "WM(Tab, LAlt)" },
@@ -83,6 +84,7 @@ combos = [
     { actions = ["X", "Slash"], output = "WM(Y, LShift | LGui)" },
     { actions = ["Delete", "Backspace"], output = "WM(Space, LAlt)" },
     { actions = ["LT(3, Backspace)", "Quote"], output = "F12" },
+    { actions = ["Delete", "J"], output = "KpEqual" },
 ]
 
 [[behavior.macro.macros]]
