@@ -1,5 +1,6 @@
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 
+mod autostart;
 mod hid;
 mod icon;
 mod notify;

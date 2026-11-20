@@ -4,9 +4,10 @@ use std::sync::{
 };
 
 use ksni::blocking::TrayMethods;
-use ksni::menu::{RadioGroup, RadioItem, StandardItem};
+use ksni::menu::{CheckmarkItem, RadioGroup, RadioItem, StandardItem};
 use ksni::{Icon, MenuItem, ToolTip, Tray};
 
+use crate::autostart;
 use crate::hid::BatterySnapshot;
 use crate::icon::{ICON_SIZE, render_argb32};
 
@@ -138,6 +139,16 @@ impl Tray for CharybdisTray {
                     }
                     .into(),
                 ],
+                ..Default::default()
+            }
+            .into(),
+            CheckmarkItem {
+                label: "Автозапуск с системой".to_string(),
+                checked: autostart::is_enabled(),
+                activate: Box::new(|_| {
+                    let target = !autostart::is_enabled();
+                    let _ = autostart::set_enabled(target);
+                }),
                 ..Default::default()
             }
             .into(),

@@ -10,6 +10,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::WindowId;
 
+use crate::autostart;
 use crate::hid::BatterySnapshot;
 use crate::icon::{ICON_SIZE, render_rgba};
 
@@ -27,6 +28,7 @@ struct TrayApp {
     left_item: MenuItem,
     right_item: MenuItem,
     refresh_item: MenuItem,
+    autostart_item: CheckMenuItem,
     quit_item: MenuItem,
     threshold_items: Vec<(u8, CheckMenuItem)>,
 }
@@ -87,6 +89,7 @@ impl ApplicationHandler<UserEvent> for TrayApp {
         let _ = menu.append(&PredefinedMenuItem::separator());
         let _ = menu.append(&self.refresh_item);
         let _ = menu.append(&threshold_menu);
+        let _ = menu.append(&self.autostart_item);
         let _ = menu.append(&PredefinedMenuItem::separator());
         let _ = menu.append(&self.quit_item);
 
@@ -113,6 +116,11 @@ impl ApplicationHandler<UserEvent> for TrayApp {
                 event_loop.exit();
             } else if ev.id == self.refresh_item.id() {
                 self.force_poll.store(true, Ordering::Relaxed);
+            } else if ev.id == self.autostart_item.id() {
+                let checked = self.autostart_item.is_checked();
+                if autostart::set_enabled(checked).is_err() {
+                    self.autostart_item.set_checked(!checked);
+                }
             } else {
                 for (pct, item) in &self.threshold_items {
                     if ev.id == item.id() {
@@ -132,6 +140,11 @@ impl ApplicationHandler<UserEvent> for TrayApp {
                 event_loop.exit();
             } else if ev.id == self.refresh_item.id() {
                 self.force_poll.store(true, Ordering::Relaxed);
+            } else if ev.id == self.autostart_item.id() {
+                let checked = self.autostart_item.is_checked();
+                if autostart::set_enabled(checked).is_err() {
+                    self.autostart_item.set_checked(!checked);
+                }
             } else {
                 for (pct, item) in &self.threshold_items {
                     if ev.id == item.id() {
@@ -180,6 +193,7 @@ pub fn run_tray(
         left_item: MenuItem::new("Левая:  —", false, None),
         right_item: MenuItem::new("Правая: —", false, None),
         refresh_item: MenuItem::new("Обновить сейчас", true, None),
+        autostart_item: CheckMenuItem::new("Автозапуск с системой", true, autostart::is_enabled(), None),
         quit_item: MenuItem::new("Выход", true, None),
         threshold_items,
     };
