@@ -266,12 +266,12 @@ async fn main(spawner: Spawner) {
         90,
     );
 
-    // Pointing processor with axes transform: swap_xy = false, invert_x = true, invert_y = true
+    // Pointing processor with axes transform: swap_xy = true, invert_x = true, invert_y = true
     let pointing_processor_config = PointingProcessorConfig {
         device_id: 0,
         invert_x: true,
         invert_y: true,
-        swap_xy: false,
+        swap_xy: true,
         accel: None,
         inertial_scroll: Some(InertialScrollConfig::default()),
     };
