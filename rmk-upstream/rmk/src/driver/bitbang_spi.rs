@@ -46,8 +46,9 @@ where
     SDIO: FlexPin,
 {
     /// Create a new bit-banging SPI bus
-    pub fn new(mut sck: SCK, sdio: SDIO) -> Self {
+    pub fn new(mut sck: SCK, mut sdio: SDIO) -> Self {
         let _ = sck.set_high();
+        sdio.set_as_input();
         Self { sck, sdio }
     }
 
@@ -59,6 +60,13 @@ where
     }
 
     fn write_byte(&mut self, byte: u8) {
+        // Pre-load the output latch with the MSB before switching direction to output
+        // so SDIO never glitches while SCK is high.
+        if (byte & 0x80) != 0 {
+            let _ = self.sdio.set_high();
+        } else {
+            let _ = self.sdio.set_low();
+        }
         self.sdio.set_as_output();
 
         for i in (0..8).rev() {
@@ -122,6 +130,9 @@ where
         for &word in words {
             self.write_byte(word);
         }
+        // Immediately release SDIO back to input (high-Z with pull-up) after the last clock rising
+        // edge + hold delay so the sensor can drive SDIO during T_SRAD without bus contention.
+        self.sdio.set_as_input();
         Ok(())
     }
 

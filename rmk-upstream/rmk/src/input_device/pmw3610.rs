@@ -82,33 +82,26 @@ const SMART_MODE_DISABLE: u8 = 0x80;
 const PMW3610_DATA_SIZE_BITS: usize = 12;
 
 // Timing constants
-const RESET_DELAY_MS: u64 = 10;
+const RESET_DELAY_MS: u64 = 40;
 const INIT_OBSERVATION_DELAY_MS: u64 = 10;
 const CLOCK_ON_DELAY_US: u64 = 300;
 
-// SPI timing constants (from PMW3610 datasheet)
-/// NCS to SCLK active;
-/// Delay from last NCS falling edge to 1st SCK rising edge
-const T_NCS_SCLK_NS: u64 = 120;
-/// SPI read address-data delay;
-/// from rising SCLK for last bit of the address byte, to falling SCLK for the 1st bit of data being read.
-const T_SRAD_US: u64 = 4;
-/// SPI time between read and subsequent commands;
-/// from rising SCLK for last bit of the 1st data byte, to falling SCLK for the 1st bit of data being read.
-const T_SRX_NS: u64 = 250;
-/// SPI time between write command;
-/// From rising SCLK for last bit of the first data byte, to rising SCLK for last bit of the second data byte.
-/// It's actually 20 us before read and 30 us before write, but we don't distinguish between write and read commands here, and use the larger of the two.
-const T_SWX_US: u64 = 30;
-/// SCLK to NCS inactive for SDIO write;
-/// From last SCLK falling edge to NCS rising edge, for valid SDIO data transfer
-const T_SCLK_NCS_W_US: u64 = 10;
-/// SCLK to NCS inactive for SDIO read;
-/// From last SCLK falling edge to NCS rising edge, for valid SDIO data transfer
-const T_SCLK_NCS_R_NS: u64 = 120;
-/// NCS inactive after motion burst;
-/// Minimum NCS inactive time after motion burst before next SPI usage
-const T_BEXIT_NS: u64 = 250;
+// SPI timing constants (from PMW3610 datasheet, executed as synchronous spin delays
+// so CS-asserted SPI frames are atomic and never yield to the async executor mid-transaction)
+/// NCS to SCLK active (datasheet: >= 120 ns)
+const T_NCS_SCLK_US: u32 = 1;
+/// SPI read address-data delay (datasheet: >= 4 us)
+const T_SRAD_US: u32 = 5;
+/// SPI time between read and subsequent commands (datasheet: >= 250 ns)
+const T_SRX_US: u32 = 2;
+/// SPI time between write command and subsequent command (datasheet: >= 30 us)
+const T_SWX_US: u32 = 35;
+/// SCLK to NCS inactive for SDIO write (datasheet: >= 10 us)
+const T_SCLK_NCS_W_US: u32 = 12;
+/// SCLK to NCS inactive for SDIO read (datasheet: >= 120 ns)
+const T_SCLK_NCS_R_US: u32 = 1;
+/// NCS inactive after motion burst (datasheet: >= 250 ns)
+const T_BEXIT_US: u32 = 4;
 
 // Resolution constants
 const RES_STEP: u16 = 200;
@@ -178,6 +171,10 @@ pub struct Pmw3610<SPI: SpiBus, CS: OutputPin, MOTION: InputPin + Wait> {
     motion_gpio: Option<MOTION>,
     config: Pmw3610Config,
     smart_flag: bool,
+    low_power: bool,
+    stuck_motion_count: u8,
+    missed_motion_pin_count: u8,
+    motion_pin_fallback: bool,
 }
 
 impl<SPI: SpiBus, CS: OutputPin, MOTION: InputPin + Wait> Pmw3610<SPI, CS, MOTION> {
@@ -190,6 +187,19 @@ impl<SPI: SpiBus, CS: OutputPin, MOTION: InputPin + Wait> Pmw3610<SPI, CS, MOTIO
             motion_gpio,
             config,
             smart_flag: false,
+            low_power: false,
+            stuck_motion_count: 0,
+            missed_motion_pin_count: 0,
+            motion_pin_fallback: false,
+        }
+    }
+
+    /// Synchronous microsecond busy-wait for in-frame SPI protocol timings.
+    /// Keeps CS-asserted transactions atomic so they never yield to the async executor.
+    #[inline(always)]
+    fn busy_wait_us(us: u32) {
+        for _ in 0..(us * 24) {
+            core::hint::spin_loop();
         }
     }
 
@@ -212,55 +222,62 @@ impl<SPI: SpiBus, CS: OutputPin, MOTION: InputPin + Wait> Pmw3610<SPI, CS, MOTIO
 
     async fn read_reg(&mut self, addr: u8) -> Result<u8, Pmw3610Error> {
         let _ = self.cs.set_low();
-        Timer::after(Duration::from_nanos(T_NCS_SCLK_NS)).await;
+        Self::busy_wait_us(T_NCS_SCLK_US);
 
-        self.spi.write(&[addr & 0x7f]).await.map_err(|_| Pmw3610Error::Spi)?;
+        let write_res = self.spi.write(&[addr & 0x7f]).await;
+        if write_res.is_err() {
+            let _ = self.cs.set_high();
+            Self::busy_wait_us(T_SRX_US);
+            return Err(Pmw3610Error::Spi);
+        }
 
-        Timer::after(Duration::from_micros(T_SRAD_US)).await;
+        Self::busy_wait_us(T_SRAD_US);
 
         let mut value = [0u8];
-        self.spi.read(&mut value).await.map_err(|_| Pmw3610Error::Spi)?;
+        let read_res = self.spi.read(&mut value).await;
 
-        Timer::after(Duration::from_nanos(T_SCLK_NCS_R_NS)).await;
+        Self::busy_wait_us(T_SCLK_NCS_R_US);
         let _ = self.cs.set_high();
+        Self::busy_wait_us(T_SRX_US);
 
-        Timer::after(Duration::from_nanos(T_SRX_NS)).await;
-
+        read_res.map_err(|_| Pmw3610Error::Spi)?;
         Ok(value[0])
     }
 
     async fn read_burst(&mut self, addr: u8, data: &mut [u8]) -> Result<(), Pmw3610Error> {
         let _ = self.cs.set_low();
-        Timer::after(Duration::from_nanos(T_NCS_SCLK_NS)).await;
+        Self::busy_wait_us(T_NCS_SCLK_US);
 
-        self.spi.write(&[addr & 0x7f]).await.map_err(|_| Pmw3610Error::Spi)?;
+        let write_res = self.spi.write(&[addr & 0x7f]).await;
+        if write_res.is_err() {
+            let _ = self.cs.set_high();
+            Self::busy_wait_us(T_BEXIT_US);
+            return Err(Pmw3610Error::Spi);
+        }
 
-        Timer::after(Duration::from_micros(T_SRAD_US)).await;
+        Self::busy_wait_us(T_SRAD_US);
 
-        self.spi.read(data).await.map_err(|_| Pmw3610Error::Spi)?;
+        let read_res = self.spi.read(data).await;
 
-        Timer::after(Duration::from_nanos(T_SCLK_NCS_R_NS)).await;
+        Self::busy_wait_us(T_SCLK_NCS_R_US);
         let _ = self.cs.set_high();
+        Self::busy_wait_us(T_BEXIT_US);
 
-        Timer::after(Duration::from_nanos(T_BEXIT_NS)).await;
-
+        read_res.map_err(|_| Pmw3610Error::Spi)?;
         Ok(())
     }
 
     async fn write_reg(&mut self, addr: u8, value: u8) -> Result<(), Pmw3610Error> {
         let _ = self.cs.set_low();
-        Timer::after(Duration::from_nanos(T_NCS_SCLK_NS)).await;
+        Self::busy_wait_us(T_NCS_SCLK_US);
 
-        self.spi
-            .write(&[addr | SPI_WRITE, value])
-            .await
-            .map_err(|_| Pmw3610Error::Spi)?;
+        let write_res = self.spi.write(&[addr | SPI_WRITE, value]).await;
 
-        Timer::after(Duration::from_micros(T_SCLK_NCS_W_US)).await;
+        Self::busy_wait_us(T_SCLK_NCS_W_US);
         let _ = self.cs.set_high();
+        Self::busy_wait_us(T_SWX_US);
 
-        Timer::after(Duration::from_micros(T_SWX_US)).await;
-
+        write_res.map_err(|_| Pmw3610Error::Spi)?;
         Ok(())
     }
 
@@ -275,6 +292,26 @@ impl<SPI: SpiBus, CS: OutputPin, MOTION: InputPin + Wait> Pmw3610<SPI, CS, MOTIO
     }
 
     async fn configure(&mut self) -> Result<(), Pmw3610Error> {
+        self.smart_flag = false;
+        self.stuck_motion_count = 0;
+
+        // 1. Hardware SPI serial port reset: explicitly toggle NCS high -> low -> high
+        // to reset the PMW3610 internal SPI bit counter and exit any lingering burst mode
+        // that survived across a soft MCU reboot or contact glitch.
+        let _ = self.cs.set_high();
+        Self::busy_wait_us(T_BEXIT_US);
+        let _ = self.cs.set_low();
+        Self::busy_wait_us(10);
+        let _ = self.cs.set_high();
+        Timer::after(Duration::from_millis(1)).await;
+
+        // 2. Unconditionally switch back to Register Page 0 (0x7F = 0x00) before issuing
+        // PMW3610_POWER_UP_RESET (0x3A). If the sensor was left on Page 1 before a reboot
+        // or interrupted transaction, writing 0x3A without resetting Page 0 would miss
+        // the power-up reset register and fail product ID detection across reboots.
+        let _ = self.write_reg(PMW3610_SPI_PAGE1, SPI_PAGE1_0).await;
+
+        // 3. Issue full chip Power-Up Reset and wait for internal self-test to finish.
         self.write_reg(PMW3610_POWER_UP_RESET, POWER_UP_RESET_VAL).await?;
         Timer::after(Duration::from_millis(RESET_DELAY_MS)).await;
 
@@ -288,11 +325,19 @@ impl<SPI: SpiBus, CS: OutputPin, MOTION: InputPin + Wait> Pmw3610<SPI, CS, MOTIO
         self.spi_clk_on().await?;
 
         self.write_reg(PMW3610_OBSERVATION1, 0).await?;
-        Timer::after(Duration::from_millis(INIT_OBSERVATION_DELAY_MS)).await;
-
-        let val = self.read_reg(PMW3610_OBSERVATION1).await?;
-        if (val & OBSERVATION1_INIT_MASK) != OBSERVATION1_INIT_MASK {
-            error!("Unexpected OBSERVATION1 value: {:#02x}", val);
+        let mut obs_val = 0u8;
+        let mut obs_ok = false;
+        for _ in 0..5 {
+            Timer::after(Duration::from_millis(INIT_OBSERVATION_DELAY_MS)).await;
+            obs_val = self.read_reg(PMW3610_OBSERVATION1).await?;
+            if (obs_val & OBSERVATION1_INIT_MASK) == OBSERVATION1_INIT_MASK {
+                obs_ok = true;
+                break;
+            }
+        }
+        if !obs_ok {
+            let _ = self.spi_clk_off().await;
+            error!("Unexpected OBSERVATION1 value: {:#02x}", obs_val);
             return Err(Pmw3610Error::InitFailed);
         }
 
@@ -338,7 +383,7 @@ impl<SPI: SpiBus, CS: OutputPin, MOTION: InputPin + Wait> Pmw3610<SPI, CS, MOTIO
                 .map_err(|_| Pmw3610Error::Spi)?;
         }
 
-        self.write_force_awake(self.config.force_awake)
+        self.write_force_awake(self.config.force_awake && !self.low_power)
             .await
             .map_err(|_| Pmw3610Error::Spi)?;
 
@@ -375,6 +420,16 @@ where
 
     /// Read motion data from the sensor
     async fn read_motion(&mut self) -> Result<MotionData, PointingDriverError> {
+        let pin_is_low = self
+            .motion_gpio
+            .as_mut()
+            .map_or(false, |g| g.is_low().unwrap_or(false));
+        if pin_is_low && self.motion_pin_fallback {
+            info!("PMW3610: MOTION pin signal restored, resuming interrupt mode");
+            self.motion_pin_fallback = false;
+            self.missed_motion_pin_count = 0;
+        }
+
         let burst_data_len = if self.config.smart_mode {
             BURST_DATA_LEN_SMART
         } else {
@@ -385,9 +440,34 @@ where
         self.read_burst(PMW3610_BURST_READ, &mut burst_data[..burst_data_len])
             .await?;
 
-        if (burst_data[BURST_MOTION] & MOTION_STATUS_MOTION) == 0x00 {
+        let motion_status = burst_data[BURST_MOTION];
+        // On PMW3610, bits 6..5 and 2..0 of MOTION (0x02) are reserved 0; 0xFF indicates a floating
+        // or desynchronized SPI bus (e.g., intermittent contact on SDIO/SCK/CS/VCC).
+        if motion_status == 0xFF {
+            warn!("PMW3610: Invalid burst status 0xFF, triggering sensor re-init");
+            return Err(PointingDriverError::Spi);
+        }
+
+        if (motion_status & MOTION_STATUS_MOTION) == 0x00 {
+            if pin_is_low
+                && self
+                    .motion_gpio
+                    .as_mut()
+                    .map_or(false, |g| g.is_low().unwrap_or(false))
+            {
+                self.stuck_motion_count = self.stuck_motion_count.saturating_add(1);
+                if self.stuck_motion_count >= 5 {
+                    self.stuck_motion_count = 0;
+                    warn!("PMW3610: MOTION pin stuck low without motion status, triggering re-init");
+                    return Err(PointingDriverError::Spi);
+                }
+            } else {
+                self.stuck_motion_count = 0;
+            }
             return Ok(MotionData::default());
         }
+
+        self.stuck_motion_count = 0;
 
         let x = ((burst_data[BURST_DELTA_XY_H] as u16) << 4) & 0xf00 | (burst_data[BURST_DELTA_X_L] as u16);
         let y = ((burst_data[BURST_DELTA_XY_H] as u16) << 8) & 0xf00 | (burst_data[BURST_DELTA_Y_L] as u16);
@@ -421,6 +501,7 @@ where
     /// Release the awake hold while the keyboard sleeps, restore it on wake.
     /// Without `force_awake` the sensor manages its own power and this is a no-op.
     async fn set_low_power(&mut self, enabled: bool) -> Result<(), PointingDriverError> {
+        self.low_power = enabled;
         if !self.config.force_awake {
             return Ok(());
         }
@@ -431,8 +512,66 @@ where
         self.write_force_awake(!enabled).await
     }
 
+    /// Verify sensor health when idle, recovering from brownouts, SPI desync, or latched MOTION state.
+    async fn check_health(&mut self) -> Result<(), PointingDriverError> {
+        let prod_id = self.read_reg(PMW3610_PROD_ID).await?;
+        if prod_id != PRODUCT_ID_PMW3610 {
+            warn!("PMW3610: Health check failed, invalid PROD_ID: {:#02x}", prod_id);
+            return Err(PointingDriverError::InvalidProductId(prod_id));
+        }
+
+        let obs = self.read_reg(PMW3610_OBSERVATION1).await?;
+        if (obs & OBSERVATION1_INIT_MASK) != OBSERVATION1_INIT_MASK {
+            warn!("PMW3610: Sensor reset/brownout detected (OBSERVATION1: {:#02x})", obs);
+            return Err(PointingDriverError::InitFailed);
+        }
+
+        if self.config.force_awake && !self.low_power {
+            let perf = self.read_reg(PMW3610_PERFORMANCE).await?;
+            if (perf & PERFORMANCE_FMODE_MASK) != PERFORMANCE_FMODE_FORCE_AWAKE {
+                self.write_force_awake(true).await?;
+            }
+        }
+
+        let pin_is_low = self
+            .motion_gpio
+            .as_mut()
+            .map_or(false, |g| g.is_low().unwrap_or(false));
+        if !pin_is_low {
+            let motion = self.read_reg(PMW3610_MOTION).await?;
+            if motion == 0xFF {
+                return Err(PointingDriverError::Spi);
+            }
+            if (motion & MOTION_STATUS_MOTION) != 0 {
+                // Clear latched delta registers so the MOTION interrupt output can re-arm.
+                for reg in (PMW3610_MOTION + 1)..=PMW3610_DELTA_XY_H {
+                    let _ = self.read_reg(reg).await?;
+                }
+                if self.motion_gpio.is_some() && !self.motion_pin_fallback {
+                    self.missed_motion_pin_count = self.missed_motion_pin_count.saturating_add(1);
+                    if self.missed_motion_pin_count >= 2 {
+                        warn!("PMW3610: MOTION pin unresponsive while motion is pending; enabling SPI polling fallback");
+                        self.motion_pin_fallback = true;
+                    }
+                }
+            } else {
+                self.missed_motion_pin_count = 0;
+            }
+        } else {
+            self.missed_motion_pin_count = 0;
+            if self.motion_pin_fallback {
+                self.motion_pin_fallback = false;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Check if motion is pending (motion GPIO is active low)
     fn motion_pending(&mut self) -> bool {
+        if self.motion_pin_fallback {
+            return true;
+        }
         match &mut self.motion_gpio {
             Some(gpio) => gpio.is_low().unwrap_or(true),
             None => true,
@@ -440,7 +579,11 @@ where
     }
 
     fn motion_gpio(&mut self) -> Option<&mut MOTION> {
-        self.motion_gpio.as_mut()
+        if self.motion_pin_fallback {
+            None
+        } else {
+            self.motion_gpio.as_mut()
+        }
     }
 
     /// Set sensor resolution in CPI (200-3200, step 200)

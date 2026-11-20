@@ -70,6 +70,10 @@ pub trait PointingDriver {
     async fn set_low_power(&mut self, _enabled: bool) -> Result<(), PointingDriverError> {
         Ok(())
     }
+    /// Verify sensor health when idle, recovering from brownouts, SPI desync, or latched MOTION state.
+    async fn check_health(&mut self) -> Result<(), PointingDriverError> {
+        Ok(())
+    }
 }
 
 /// Initialization state for the device
@@ -86,6 +90,7 @@ pub enum InitState {
 /// This device publishes `PointingEvent` events with relative X/Y movement.
 #[processor(subscribe = [PointingSetCpiEvent, SleepStateEvent])]
 #[input_device(publish = PointingEvent)]
+#[::rmk::macros::runnable_generated]
 pub struct PointingDevice<S: PointingDriver> {
     pub sensor: S,
     pub init_state: InitState,
@@ -152,11 +157,9 @@ impl<S: PointingDriver> PointingDevice<S> {
                 self.accumulated_y = self.accumulated_y.saturating_add(motion.dy as i32);
             }
             Err(_e) => {
-                warn!("PointingDevice {}: Read motion error", self.id);
-                if self.sensor.motion_gpio().is_some() {
-                    // Back off when motion GPIO is asserted during an SPI error so we don't spin at 100% CPU
-                    Timer::after(Duration::from_millis(10)).await;
-                }
+                warn!("PointingDevice {}: Read motion error, scheduling re-init", self.id);
+                self.init_state = InitState::Pending;
+                Timer::after(Duration::from_millis(10)).await;
             }
         }
     }
@@ -200,7 +203,8 @@ impl<S: PointingDriver> PointingDevice<S> {
         if e.device_id == self.id {
             info!("PointingDevice {}: Setting resolution to {}", self.id, e.cpi);
             if let Err(err) = self.sensor.set_resolution(e.cpi).await {
-                debug!("PointingDevice {}: Setting resolution failed: {:?}", self.id, err);
+                warn!("PointingDevice {}: Setting resolution failed: {:?}, scheduling re-init", self.id, err);
+                self.init_state = InitState::Pending;
             }
         }
     }
@@ -212,7 +216,13 @@ impl<S: PointingDriver> PointingDevice<S> {
             return;
         }
         if let Err(err) = self.sensor.set_low_power(e.0).await {
-            debug!("PointingDevice {}: low power switch failed: {:?}", self.id, err);
+            warn!("PointingDevice {}: low power switch failed: {:?}, scheduling re-init", self.id, err);
+            self.init_state = InitState::Pending;
+        } else if !e.0 {
+            if let Err(err) = self.sensor.check_health().await {
+                warn!("PointingDevice {}: health check on wake failed: {:?}, scheduling re-init", self.id, err);
+                self.init_state = InitState::Pending;
+            }
         }
     }
 
@@ -230,11 +240,8 @@ impl<S: PointingDriver> PointingDevice<S> {
     async fn read_pointing_event(&mut self) -> PointingEvent {
         use embassy_futures::select::{Either, select};
 
-        while self.init_state != InitState::Ready {
-            if !self.try_init().await && self.init_state == InitState::Failed {
-                pending::<()>().await;
-            }
-        }
+        const REINIT_BACKOFF: Duration = Duration::from_secs(2);
+        const MIN_MOTION_PIN_POLL_GAP: Duration = Duration::from_micros(500);
 
         if self.last_poll == Instant::MIN {
             self.last_poll = Instant::now();
@@ -244,13 +251,30 @@ impl<S: PointingDriver> PointingDevice<S> {
         }
 
         loop {
+            while self.init_state != InitState::Ready {
+                if !self.try_init().await && self.init_state == InitState::Failed {
+                    Timer::after(REINIT_BACKOFF).await;
+                    self.init_state = InitState::Pending;
+                }
+                self.last_poll = Instant::now();
+                self.last_report = Instant::now();
+            }
+
             let poll_wait = async {
+                let elapsed_since_poll = self.last_poll.elapsed();
                 if let Some(gpio) = self.sensor.motion_gpio() {
                     let _ = gpio.wait_for_low().await;
+                    let min_gap = self.poll_interval.min(MIN_MOTION_PIN_POLL_GAP);
+                    if let Some(rem) = min_gap.checked_sub(self.last_poll.elapsed())
+                        && rem > Duration::MIN
+                        && elapsed_since_poll > Duration::MIN
+                    {
+                        Timer::after(rem).await;
+                    }
                 } else {
                     Timer::after(
                         self.poll_interval
-                            .checked_sub(self.last_poll.elapsed())
+                            .checked_sub(elapsed_since_poll)
                             .unwrap_or(Duration::MIN),
                     )
                     .await;
@@ -281,6 +305,140 @@ impl<S: PointingDriver> PointingDevice<S> {
                         self.last_report = Instant::now();
                         return event;
                     }
+                }
+            }
+        }
+    }
+}
+
+impl<S: PointingDriver> Runnable for PointingDevice<S> {
+    async fn run(&mut self) -> ! {
+        use embassy_futures::select::{Either, Either3, select, select3};
+        use crate::event::{EventSubscriber, publish_event_async};
+        use crate::processor::Processor;
+
+        let mut proc_sub = <Self as Processor>::subscriber();
+        let mut is_sleeping = false;
+        let mut last_health_check = Instant::now();
+
+        const HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(1500);
+        const REINIT_BACKOFF: Duration = Duration::from_secs(2);
+        const MIN_MOTION_PIN_POLL_GAP: Duration = Duration::from_micros(500);
+
+        if self.last_poll == Instant::MIN {
+            self.last_poll = Instant::now();
+        }
+        if self.last_report == Instant::MIN {
+            self.last_report = Instant::now();
+        }
+
+        loop {
+            while self.init_state != InitState::Ready {
+                if !self.try_init().await && self.init_state == InitState::Failed {
+                    match select(Timer::after(REINIT_BACKOFF), proc_sub.next_event()).await {
+                        Either::First(_) => {
+                            self.init_state = InitState::Pending;
+                        }
+                        Either::Second(proc_event) => {
+                            if let PointingDeviceProcessorEventEnum::SleepState(ref s) = proc_event {
+                                is_sleeping = s.0;
+                            }
+                            <Self as Processor>::process(self, proc_event).await;
+                        }
+                    }
+                }
+                self.last_poll = Instant::now();
+                self.last_report = Instant::now();
+            }
+
+            let poll_wait = async {
+                let elapsed_since_poll = self.last_poll.elapsed();
+                if let Some(gpio) = self.sensor.motion_gpio() {
+                    let is_motion = if is_sleeping {
+                        let _ = gpio.wait_for_low().await;
+                        true
+                    } else {
+                        let health_rem = HEALTH_CHECK_INTERVAL
+                            .checked_sub(last_health_check.elapsed())
+                            .unwrap_or(Duration::MIN);
+                        match select(gpio.wait_for_low(), Timer::after(health_rem)).await {
+                            Either::First(_) => true,
+                            Either::Second(_) => false,
+                        }
+                    };
+                    if is_motion {
+                        let min_gap = self.poll_interval.min(MIN_MOTION_PIN_POLL_GAP);
+                        if let Some(rem) = min_gap.checked_sub(self.last_poll.elapsed())
+                            && rem > Duration::MIN
+                            && elapsed_since_poll > Duration::MIN
+                        {
+                            Timer::after(rem).await;
+                        }
+                    }
+                    is_motion
+                } else if is_sleeping {
+                    pending::<bool>().await
+                } else {
+                    let effective_poll = if self.accumulated_x != 0 || self.accumulated_y != 0 {
+                        self.poll_interval
+                    } else {
+                        self.poll_interval.max(self.report_interval.min(Duration::from_millis(8)))
+                    };
+                    Timer::after(
+                        effective_poll
+                            .checked_sub(elapsed_since_poll)
+                            .unwrap_or(Duration::MIN),
+                    )
+                    .await;
+                    true
+                }
+            };
+
+            let report_wait = async {
+                if self.accumulated_x != 0 || self.accumulated_y != 0 {
+                    Timer::after(
+                        self.report_interval
+                            .checked_sub(self.last_report.elapsed())
+                            .unwrap_or(Duration::MIN),
+                    )
+                    .await;
+                } else {
+                    pending::<()>().await;
+                }
+            };
+
+            match select3(poll_wait, report_wait, proc_sub.next_event()).await {
+                Either3::First(is_motion_poll) => {
+                    if is_motion_poll {
+                        self.poll_once().await;
+                        self.last_poll = Instant::now();
+                        if !is_sleeping && last_health_check.elapsed() >= HEALTH_CHECK_INTERVAL {
+                            last_health_check = Instant::now();
+                            if let Err(err) = self.sensor.check_health().await {
+                                warn!("PointingDevice {}: Health check failed: {:?}, re-initializing", self.id, err);
+                                self.init_state = InitState::Pending;
+                            }
+                        }
+                    } else {
+                        last_health_check = Instant::now();
+                        if let Err(err) = self.sensor.check_health().await {
+                            warn!("PointingDevice {}: Health check failed: {:?}, re-initializing", self.id, err);
+                            self.init_state = InitState::Pending;
+                        }
+                    }
+                }
+                Either3::Second(_) => {
+                    if let Some(event) = self.take_report_event() {
+                        self.last_report = Instant::now();
+                        publish_event_async(event).await;
+                    }
+                }
+                Either3::Third(proc_event) => {
+                    if let PointingDeviceProcessorEventEnum::SleepState(ref s) = proc_event {
+                        is_sleeping = s.0;
+                    }
+                    <Self as Processor>::process(self, proc_event).await;
+                    last_health_check = Instant::now();
                 }
             }
         }
