@@ -524,6 +524,13 @@ where
                             match &event {
                                 DongleEvent::Layer(e) => self.router.set_active_layer(e.0),
                                 DongleEvent::Sleep(e) => self.router.set_sleeping(e.0),
+                                DongleEvent::Battery(e) => self.router.set_right_battery(e.0),
+                                #[cfg(feature = "split")]
+                                DongleEvent::PeripheralBattery(e) => {
+                                    if e.id == 0 {
+                                        self.router.set_left_battery(e.state.0);
+                                    }
+                                }
                                 _ => {}
                             }
                             publish_event(event);

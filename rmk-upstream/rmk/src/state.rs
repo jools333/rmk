@@ -40,6 +40,23 @@ pub(crate) fn current_sleep_state() -> bool {
     }
 }
 
+/// Encode `BatteryStatus` into `(level_or_0xff, charge_state_u8)` for Vial `[0x53, 0x04]`.
+pub(crate) fn encode_battery_status(status: rmk_types::battery::BatteryStatus) -> (u8, u8) {
+    use rmk_types::battery::{BatteryStatus, ChargeState};
+    match status {
+        BatteryStatus::Unavailable => (0xFF, 2),
+        BatteryStatus::Available { charge_state, level } => {
+            let lvl = level.map(|v| v.min(100)).unwrap_or(0xFF);
+            let chg = match charge_state {
+                ChargeState::Discharging => 0,
+                ChargeState::Charging => 1,
+                ChargeState::Unknown => 2,
+            };
+            (lvl, chg)
+        }
+    }
+}
+
 #[cfg(feature = "_ble")]
 pub(crate) fn current_ble_status() -> BleStatus {
     CONNECTION_STATUS.lock(|c| c.get().ble)

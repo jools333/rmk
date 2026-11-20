@@ -50,10 +50,20 @@ pub(crate) async fn run(server: &Server<'_>, conn: &GattConnection<'_, '_, Defau
     #[cfg(feature = "split")]
     let mut peripheral_battery = PeripheralBatteryEvent::subscriber();
 
-    // Push current active layer upon link connection so dongle has confirmed state immediately
+    // Push current active layer and battery statuses upon link connection so dongle has confirmed state immediately
     let _ = queue.try_send(DongleEvent::Layer(LayerChangeEvent::new(
         crate::keymap::current_active_layer(),
     )));
+    let _ = queue.try_send(DongleEvent::Battery(BatteryStatusEvent(
+        crate::input_device::battery::current_battery_status(),
+    )));
+    #[cfg(feature = "split")]
+    if let Some(pb) = crate::split::driver::current_peripheral_battery_status(0) {
+        let _ = queue.try_send(DongleEvent::PeripheralBattery(PeripheralBatteryEvent {
+            id: 0,
+            state: BatteryStatusEvent(pb),
+        }));
+    }
 
     let queue_events = async {
         loop {

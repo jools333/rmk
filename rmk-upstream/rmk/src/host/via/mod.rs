@@ -73,6 +73,36 @@ impl<'a> VialService<'a> {
                     report.input_data[1] = 0x03;
                     report.input_data[2] = self.ctx.active_layer();
                 }
+                // 0x04: Get Split Battery Levels -> [0x53, 0x04]
+                0x04 => {
+                    report.input_data[0] = 0x53;
+                    report.input_data[1] = 0x04;
+                    #[cfg(feature = "_ble")]
+                    {
+                        let (r_lvl, r_chg) = crate::state::encode_battery_status(
+                            crate::input_device::battery::current_battery_status(),
+                        );
+                        report.input_data[2] = r_lvl;
+                        report.input_data[4] = r_chg;
+                        #[cfg(feature = "split")]
+                        let (l_lvl, l_chg) = crate::split::driver::current_peripheral_battery_status(0)
+                            .map(crate::state::encode_battery_status)
+                            .unwrap_or((0xFF, 2));
+                        #[cfg(not(feature = "split"))]
+                        let (l_lvl, l_chg) = (0xFF, 2);
+                        report.input_data[3] = l_lvl;
+                        report.input_data[5] = l_chg;
+                    }
+                    #[cfg(not(feature = "_ble"))]
+                    {
+                        report.input_data[2] = 0xFF;
+                        report.input_data[3] = 0xFF;
+                        report.input_data[4] = 2;
+                        report.input_data[5] = 2;
+                    }
+                    report.input_data[6] = 1; // Wired USB connected
+                    report.input_data[7] = u8::from(crate::state::current_sleep_state());
+                }
                 _ => {
                     report.input_data[0] = 0xFF;
                 }

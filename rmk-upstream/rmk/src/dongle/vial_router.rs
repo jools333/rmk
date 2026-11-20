@@ -10,6 +10,7 @@ use embassy_futures::select::{Either, select};
 use embassy_sync::channel::Channel;
 use embassy_sync::signal::Signal;
 use embedded_io_async::{Read, Write};
+use rmk_types::battery::BatteryStatus;
 use rmk_types::protocol::vial::{VIAL_EP_SIZE, ViaCommand};
 
 use crate::RawMutex;
@@ -37,6 +38,14 @@ pub struct DongleRouter {
     active_layer: AtomicU8,
     /// Whether the connected keyboard is currently in sleep mode (`DongleEvent::Sleep`).
     sleeping: AtomicBool,
+    /// Cached right half (central) battery level (0..=100, or 0xFF if unavailable).
+    right_battery_level: AtomicU8,
+    /// Cached right half (central) charge state (0 = Discharging, 1 = Charging, 2 = Unknown).
+    right_charge_state: AtomicU8,
+    /// Cached left half (peripheral) battery level (0..=100, or 0xFF if unavailable).
+    left_battery_level: AtomicU8,
+    /// Cached left half (peripheral) charge state (0 = Discharging, 1 = Charging, 2 = Unknown).
+    left_charge_state: AtomicU8,
 }
 
 impl DongleRouter {
@@ -48,6 +57,10 @@ impl DongleRouter {
             link_dropped: Signal::new(),
             active_layer: AtomicU8::new(0),
             sleeping: AtomicBool::new(false),
+            right_battery_level: AtomicU8::new(0xFF),
+            right_charge_state: AtomicU8::new(2),
+            left_battery_level: AtomicU8::new(0xFF),
+            left_charge_state: AtomicU8::new(2),
         }
     }
 
@@ -66,6 +79,20 @@ impl DongleRouter {
         self.sleeping.store(sleeping, Ordering::Relaxed);
     }
 
+    /// Update cached right half battery status received from keyboard via `DongleEvent::Battery`.
+    pub(super) fn set_right_battery(&self, status: BatteryStatus) {
+        let (lvl, chg) = crate::state::encode_battery_status(status);
+        self.right_battery_level.store(lvl, Ordering::Relaxed);
+        self.right_charge_state.store(chg, Ordering::Relaxed);
+    }
+
+    /// Update cached left half battery status received from keyboard via `DongleEvent::PeripheralBattery`.
+    pub(super) fn set_left_battery(&self, status: BatteryStatus) {
+        let (lvl, chg) = crate::state::encode_battery_status(status);
+        self.left_battery_level.store(lvl, Ordering::Relaxed);
+        self.left_charge_state.store(chg, Ordering::Relaxed);
+    }
+
     /// Called by the dongle task once it is relaying: open the host→keyboard path.
     pub(super) fn link_up(&self) {
         // `link_dropped` latches; clear it and the queue before the first forward.
@@ -81,6 +108,10 @@ impl DongleRouter {
         self.link_connected.store(false, Ordering::Relaxed);
         self.sleeping.store(false, Ordering::Relaxed);
         self.active_layer.store(0, Ordering::Relaxed);
+        self.right_battery_level.store(0xFF, Ordering::Relaxed);
+        self.right_charge_state.store(2, Ordering::Relaxed);
+        self.left_battery_level.store(0xFF, Ordering::Relaxed);
+        self.left_charge_state.store(2, Ordering::Relaxed);
         self.link_dropped.signal(());
         self.to_keyboard.clear();
     }
@@ -127,6 +158,21 @@ impl DongleRouter {
             report[0] = 0x53;
             report[1] = 0x03;
             report[2] = self.active_layer.load(Ordering::Relaxed);
+            let _ = self.to_host.send(report).await;
+            return;
+        }
+
+        // Intercept [0x53, 0x04] (Get Split Battery Levels): answer immediately from locally
+        // cached battery status pushed by DongleEvent::Battery / DongleEvent::PeripheralBattery.
+        if report[0] == 0x53 && report[1] == 0x04 {
+            report[0] = 0x53;
+            report[1] = 0x04;
+            report[2] = self.right_battery_level.load(Ordering::Relaxed);
+            report[3] = self.left_battery_level.load(Ordering::Relaxed);
+            report[4] = self.right_charge_state.load(Ordering::Relaxed);
+            report[5] = self.left_charge_state.load(Ordering::Relaxed);
+            report[6] = u8::from(self.link_connected.load(Ordering::Relaxed));
+            report[7] = u8::from(self.sleeping.load(Ordering::Relaxed));
             let _ = self.to_host.send(report).await;
             return;
         }
