@@ -139,9 +139,9 @@ impl BatteryProcessor {
         // If the battery voltage range is 3.6v ~ 4.2v, the adc val range should be (4096 ~ 4755) * measured / total
         let mut measured = self.adc_divider_measured as i64;
         let mut total = self.adc_divider_total as i64;
-        if 500 < val && val < 1000 {
+        if 500 < val && val < 1500 {
             // Thing becomes different when using vddh as reference
-            // The adc value for vddh pin is actually vddh/5,
+            // The adc value for vddh pin is actually vddh/5 (including up to ~5V when on USB),
             // so we use this rough range to detect vddh
             measured = 1;
             total = 5;

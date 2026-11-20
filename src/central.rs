@@ -14,7 +14,7 @@ use embassy_nrf::gpio::{Flex, Input, Level, Output, OutputDrive, Pull};
 use embassy_nrf::interrupt::{self, InterruptExt};
 use embassy_nrf::mode::Async;
 use embassy_nrf::peripherals::{RNG, SAADC, USBD};
-use embassy_nrf::saadc::{self, AnyInput, Input as _, Saadc};
+use embassy_nrf::saadc::{self, Input as _, Saadc};
 use embassy_nrf::usb::Driver;
 use embassy_nrf::usb::vbus_detect::HardwareVbusDetect;
 use embassy_nrf::{Peri, bind_interrupts, rng, usb};
@@ -92,11 +92,43 @@ fn build_sdc<'d, const N: usize>(
         .build(p, rng, mpsl, mem)
 }
 
-fn init_adc(adc_pin: AnyInput, adc: Peri<'static, SAADC>) -> Saadc<'static, 1> {
-    let config = saadc::Config::default();
-    let channel_cfg = saadc::ChannelConfig::single_ended(adc_pin.degrade_saadc());
+async fn init_battery_adc(
+    mut p0_04: Peri<'static, embassy_nrf::peripherals::P0_04>,
+    mut adc: Peri<'static, SAADC>,
+) -> Saadc<'static, 1> {
     interrupt::SAADC.set_priority(interrupt::Priority::P3);
-    saadc::Saadc::new(adc, Irqs, config, [channel_cfg])
+
+    // Probe P0.04 (AIN2) first: on original nice!nano v2 an 806k/2M divider yields ~2600..3400.
+    // On clones / SuperMini nRF52840 without a P0.04 divider, fall back to internal VDDH/5.
+    let raw_p04 = {
+        let mut probe = saadc::Saadc::new(
+            adc.reborrow(),
+            Irqs,
+            saadc::Config::default(),
+            [saadc::ChannelConfig::single_ended(p0_04.reborrow().degrade_saadc())],
+        );
+        probe.calibrate().await;
+        let mut buf = [0i16; 1];
+        probe.sample(&mut buf).await;
+        buf[0]
+    };
+
+    let selected_pin = if raw_p04 >= 1600 {
+        info!("Battery ADC: using external divider on P0.04 (raw={})", raw_p04);
+        p0_04.degrade_saadc()
+    } else {
+        info!("Battery ADC: P0.04 raw={}, falling back to internal VDDH/5", raw_p04);
+        saadc::VddhDiv5Input.degrade_saadc()
+    };
+
+    let saadc = saadc::Saadc::new(
+        adc,
+        Irqs,
+        saadc::Config::default(),
+        [saadc::ChannelConfig::single_ended(selected_pin)],
+    );
+    saadc.calibrate().await;
+    saadc
 }
 
 fn ble_addr() -> [u8; 6] {
@@ -160,10 +192,8 @@ async fn main(spawner: Spawner) {
         output: [P1_15, P0_24, P0_22, P1_06]
     );
 
-    // Battery ADC: nice!nano v2 AIN2 (P0.04) with 2M/806k voltage divider
-    let adc_pin = p.P0_04.degrade_saadc();
-    let saadc = init_adc(adc_pin, p.SAADC);
-    saadc.calibrate().await;
+    // Battery ADC: auto-detect nice!nano v2 divider on P0.04 or internal VDDH/5 on clones
+    let saadc = init_battery_adc(p.P0_04, p.SAADC).await;
 
     // Device and configuration
     let device_config = DeviceConfig {
@@ -254,7 +284,7 @@ async fn main(spawner: Spawner) {
         [AnalogEventType::Battery],
         [0],
         embassy_time::Duration::from_secs(30),
-        Some(embassy_time::Duration::from_secs(120)),
+        Some(embassy_time::Duration::from_secs(30)),
     );
     let mut batt_proc = BatteryProcessor::new(2000, 2806);
 
