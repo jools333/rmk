@@ -297,5 +297,5 @@ async fn split_peripheral_advertise<'a, 'b, C: Controller>(
         }
     }
     let seeking = Adv::SplitPeripheral { id: id as u8 };
-    advertise(peripheral, &server.server, seeking, Duration::from_secs(300)).await
+    advertise(peripheral, &server.server, seeking, Duration::from_secs(60)).await
 }

@@ -321,7 +321,7 @@ impl<S: PointingDriver> Runnable for PointingDevice<S> {
         let mut is_sleeping = false;
         let mut last_health_check = Instant::now();
 
-        const HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(1500);
+        const HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(10);
         const REINIT_BACKOFF: Duration = Duration::from_secs(2);
         const MIN_MOTION_PIN_POLL_GAP: Duration = Duration::from_micros(500);
 

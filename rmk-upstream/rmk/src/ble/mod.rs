@@ -297,9 +297,9 @@ async fn run_ble_keyboard<
             let adv = Adv::Host { name: product_name };
 
             // All bonded dongle keys are already loaded into the stack by `update_stack_bonds()`,
-            // and `Adv::DongleSeeking` is identical across slots, so we can use a single 300s
+            // and `Adv::DongleSeeking` is identical across slots, so we can use a single 60s
             // window without rotating slots or writing ActiveBleProfile to flash every 6 seconds.
-            let adv_duration = Duration::from_secs(300);
+            let adv_duration = Duration::from_secs(60);
 
             // Wait for 10ms to ensure the USB is checked
             Timer::after_millis(10).await;
@@ -809,9 +809,9 @@ pub(crate) async fn set_conn_params<
     let requests = [
         // The first request is what Apple devices accept:
         // https://developer.apple.com/accessories/Accessory-Design-Guidelines.pdf
-        (Duration::from_millis(15), 0, Duration::from_secs(6)),
-        // The second request is for best performance (trackball requires 0 slave latency)
-        (Duration::from_micros(7500), 0, Duration::from_secs(6)),
+        (Duration::from_millis(15), 4, Duration::from_secs(6)),
+        // The second request is for best performance with slave latency 30 (~232.5 ms idle radio wakeup, 0 ms TX latency)
+        (Duration::from_micros(7500), 30, Duration::from_secs(6)),
     ];
 
     for (interval, max_latency, supervision_timeout) in requests {
@@ -837,8 +837,8 @@ pub(crate) async fn set_conn_params<
 }
 
 /// Adjust keyboard <-> peer connection latency based on sleep state.
-/// Awake: 7.5 ms interval with 0 slave latency for instant trackball response.
-/// Sleep: 7.5 ms interval with slave latency 60 (~457 ms wakeup period) to save battery.
+/// Awake: 7.5 ms interval with slave latency 30 (~232.5 ms idle wakeup, instant 7.5 ms TX on motion/key).
+/// Sleep: 7.5 ms interval with slave latency 60 (~457.5 ms wakeup period) to save battery.
 async fn sleep_conn_params_loop<
     'a,
     'b,
@@ -851,11 +851,11 @@ async fn sleep_conn_params_loop<
 ) {
     let mut sleep_events = SleepStateEvent::subscriber();
     let mut sleeping = crate::state::current_sleep_state();
-    let mut applied_sleeping = false;
+    let mut applied_sleeping = !sleeping;
 
     loop {
         if sleeping != applied_sleeping {
-            let max_latency = if sleeping { 60 } else { 0 };
+            let max_latency = if sleeping { 60 } else { 30 };
             let params = RequestedConnParams {
                 min_connection_interval: Duration::from_micros(7500),
                 max_connection_interval: Duration::from_micros(7500),

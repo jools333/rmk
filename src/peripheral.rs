@@ -181,8 +181,8 @@ async fn main(spawner: Spawner) {
         saadc,
         [AnalogEventType::Battery],
         [0],
-        embassy_time::Duration::from_secs(30),
-        Some(embassy_time::Duration::from_secs(30)),
+        embassy_time::Duration::from_secs(60),
+        Some(embassy_time::Duration::from_secs(120)),
     );
     let mut battery_processor = BatteryProcessor::new(2000, 2806);
     let mut watchdog_runner = Nrf52Watchdog::default_runner(p.WDT);

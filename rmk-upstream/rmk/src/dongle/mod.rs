@@ -257,7 +257,7 @@ where
             connect_params: RequestedConnParams {
                 min_connection_interval: Duration::from_micros(7500),
                 max_connection_interval: Duration::from_micros(7500),
-                max_latency: 0,
+                max_latency: 30,
                 supervision_timeout: Duration::from_secs(10),
                 ..Default::default()
             },
