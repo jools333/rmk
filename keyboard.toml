@@ -55,9 +55,9 @@ quick_tap_timeout = "180ms"
 
 [behavior.morse.profiles.z_shift]
 enable_flow_tap = false
-unilateral_tap = false
-hold_on_other_press = true
-hold_timeout = "200ms"
+unilateral_tap = true
+permissive_hold = true
+hold_timeout = "140ms"
 gap_timeout = "180ms"
 quick_tap_timeout = "180ms"
 

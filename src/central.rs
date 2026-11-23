@@ -225,7 +225,51 @@ async fn main(spawner: Spawner) {
     let mut keymap_data = KeymapData::new(keymap::get_default_keymap());
     let mut behavior_config = behavior::get_default_behavior_config();
 
-    let key_config = PositionalConfig::default();
+    let key_config = rmk::config::PositionalConfig::new([
+        [
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+        ],
+        [
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+        ],
+        [
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Left,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+            rmk::config::Hand::Right,
+        ],
+        [rmk::config::Hand::Bilateral; 12],
+    ]);
     let (keymap, mut storage) = initialize_keymap_and_storage(
         &mut keymap_data,
         flash,

@@ -42,12 +42,12 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
 
     let _ = behavior_config.morse.profiles.push(sniper_profile);
 
-    // Profile 1: Instant Shift for F and J (HoldOnOtherPress + no flow-tap)
+    // Profile 1: Responsive Shift for F and J (PermissiveHold + unilateral_tap + 140ms timeout, no flow-tap)
     let shift_profile = MorseProfile::new(
-        Some(false),                       // unilateral_tap: false
-        Some(MorseMode::HoldOnOtherPress), // hold_on_other_press: true — immediate Shift when another key is pressed
-        Some(200u16),                      // hold timeout: 200ms (for Shift+click / standalone hold)
-        Some(180u16),                      // gap timeout: 180ms
+        Some(true),                      // unilateral_tap: true — prevent same-hand false Shift rolls
+        Some(MorseMode::PermissiveHold), // permissive_hold: true — only Shift when second key is nested or held >= 140ms
+        Some(140u16),                    // hold timeout: 140ms (faster than default 200ms)
+        Some(180u16),                    // gap timeout: 180ms
     )
     .with_quick_tap_timeout_ms(Some(180))
     .with_enable_flow_tap(Some(false));
