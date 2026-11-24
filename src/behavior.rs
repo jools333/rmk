@@ -5,14 +5,19 @@ use rmk::types::constants::COMBO_MAX_NUM;
 use rmk::types::keycode::{HidKeyCode, KeyCode};
 use rmk::types::modifier::ModifierCombination;
 use rmk::types::morse::{Morse, MorseMode, MorseProfile};
-use rmk::{k, lt, ltp, macros, morse, wm};
+use rmk::{k, lt, macros, morse, wm};
 
-fn home_row_morse(key: HidKeyCode, modifier: ModifierCombination, profile: MorseProfile) -> Morse {
+fn top_row_morse(
+    key: HidKeyCode,
+    hold: Action,
+    one_shot_mod: ModifierCombination,
+    profile: MorseProfile,
+) -> Morse {
     Morse::new_from_vial(
         Action::Key(KeyCode::Hid(key)),
-        Action::Modifier(modifier),
+        hold,
         Action::No,
-        Action::OneShotModifier(modifier),
+        Action::OneShotModifier(one_shot_mod),
         profile,
     )
 }
@@ -66,27 +71,54 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
 
     let _ = behavior_config.morse.profiles.push(shift_profile);
 
-    // Home-row Morse entries with double-tap -> OneShotModifier.
+    // Top-row Morse entries (E, R, T / I, U, Y) with double-tap -> OneShotModifier.
     // quick_tap_timeout_ms must be 0 so the second tap enters DOUBLE_TAP instead of quick-tap repeat.
-    let home_row_default_profile = behavior_config
+    let top_row_default_profile = behavior_config
         .morse
         .default_profile
         .with_quick_tap_timeout_ms(Some(0));
-    let home_row_shift_profile = shift_profile.with_quick_tap_timeout_ms(Some(0));
+    let top_row_sniper_profile = sniper_profile.with_quick_tap_timeout_ms(Some(0));
 
-    let home_row_morses = [
-        (HidKeyCode::D, ModifierCombination::LALT, home_row_default_profile),   // 0: D
-        (HidKeyCode::F, ModifierCombination::LSHIFT, home_row_shift_profile),   // 1: F
-        (HidKeyCode::G, ModifierCombination::LCTRL, home_row_default_profile),  // 2: G
-        (HidKeyCode::K, ModifierCombination::LALT, home_row_default_profile),   // 3: K
-        (HidKeyCode::J, ModifierCombination::RSHIFT, home_row_shift_profile),   // 4: J
-        (HidKeyCode::H, ModifierCombination::RCTRL, home_row_default_profile),  // 5: H
+    let top_row_morses = [
+        top_row_morse(
+            HidKeyCode::E,
+            Action::Key(KeyCode::Hid(HidKeyCode::E)),
+            ModifierCombination::LALT,
+            top_row_default_profile,
+        ), // 0: E (above D/LAlt)
+        top_row_morse(
+            HidKeyCode::R,
+            Action::LayerOn(6),
+            ModifierCombination::LSHIFT,
+            top_row_sniper_profile,
+        ), // 1: R (above F/LShift, hold = Sniper layer 6)
+        top_row_morse(
+            HidKeyCode::T,
+            Action::Key(KeyCode::Hid(HidKeyCode::T)),
+            ModifierCombination::LCTRL,
+            top_row_default_profile,
+        ), // 2: T (above G/LCtrl)
+        top_row_morse(
+            HidKeyCode::I,
+            Action::Key(KeyCode::Hid(HidKeyCode::I)),
+            ModifierCombination::LALT,
+            top_row_default_profile,
+        ), // 3: I (above K/LAlt)
+        top_row_morse(
+            HidKeyCode::U,
+            Action::Key(KeyCode::Hid(HidKeyCode::U)),
+            ModifierCombination::RSHIFT,
+            top_row_default_profile,
+        ), // 4: U (above J/RShift)
+        top_row_morse(
+            HidKeyCode::Y,
+            Action::Key(KeyCode::Hid(HidKeyCode::Y)),
+            ModifierCombination::RCTRL,
+            top_row_default_profile,
+        ), // 5: Y (above H/RCtrl)
     ];
-    for (key, modifier, profile) in home_row_morses {
-        let _ = behavior_config
-            .morse
-            .morses
-            .push(home_row_morse(key, modifier, profile));
+    for morse_entry in top_row_morses {
+        let _ = behavior_config.morse.morses.push(morse_entry);
     }
 
     behavior_config.one_shot.timeout = embassy_time::Duration::from_millis(1000);
@@ -103,13 +135,13 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
         ))),
         // 2. E + I -> Win+3 (App 3)
         Some(Combo::new(ComboConfig::new(
-            [k!(E), k!(I)],
+            [morse!(0), morse!(3)],
             wm!(Kc3, ModifierCombination::LGUI),
             None,
         ))),
         // 3. ltp!(6, R, 0) + U -> Win+4 (App 4)
         Some(Combo::new(ComboConfig::new(
-            [ltp!(6, R, 0), k!(U)],
+            [morse!(1), morse!(4)],
             wm!(Kc4, ModifierCombination::RGUI),
             None,
         ))),
@@ -127,19 +159,19 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
         ))),
         // 6. F + Semicolon -> Ctrl+S (Save)
         Some(Combo::new(ComboConfig::new(
-            [morse!(1), k!(Semicolon)],
+            [k!(F), k!(Semicolon)],
             wm!(S, ModifierCombination::LCTRL),
             None,
         ))),
         // 7. F + J -> Win+Space (Language Switch)
         Some(Combo::new(ComboConfig::new(
-            [morse!(1), morse!(4)],
+            [k!(F), k!(J)],
             wm!(Space, ModifierCombination::LGUI),
             None,
         ))),
         // 8. Delete + H -> KpMinus
         Some(Combo::new(ComboConfig::new(
-            [k!(Delete), morse!(5)],
+            [k!(Delete), k!(H)],
             k!(KpMinus),
             None,
         ))),
@@ -179,7 +211,7 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
         ))),
         // 16. Delete + J -> KpEqual
         Some(Combo::new(ComboConfig::new(
-            [k!(Delete), morse!(4)],
+            [k!(Delete), k!(J)],
             k!(KpEqual),
             None,
         ))),
