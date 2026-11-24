@@ -1,9 +1,21 @@
 use rmk::config::{BehaviorConfig, CombosConfig, KeyboardMacrosConfig};
 use rmk::keyboard::combo::{Combo, ComboConfig};
+use rmk::types::action::Action;
 use rmk::types::constants::COMBO_MAX_NUM;
+use rmk::types::keycode::{HidKeyCode, KeyCode};
 use rmk::types::modifier::ModifierCombination;
-use rmk::types::morse::{MorseMode, MorseProfile};
-use rmk::{k, lt, ltp, macros, wm};
+use rmk::types::morse::{Morse, MorseMode, MorseProfile};
+use rmk::{k, lt, ltp, macros, morse, wm};
+
+fn home_row_morse(key: HidKeyCode, modifier: ModifierCombination, profile: MorseProfile) -> Morse {
+    Morse::new_from_vial(
+        Action::Key(KeyCode::Hid(key)),
+        Action::Modifier(modifier),
+        Action::No,
+        Action::OneShotModifier(modifier),
+        profile,
+    )
+}
 
 pub fn get_default_behavior_config() -> BehaviorConfig {
     let mut behavior_config = BehaviorConfig::default();
@@ -54,6 +66,29 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
 
     let _ = behavior_config.morse.profiles.push(shift_profile);
 
+    // Home-row Morse entries with double-tap -> OneShotModifier.
+    // quick_tap_timeout_ms must be 0 so the second tap enters DOUBLE_TAP instead of quick-tap repeat.
+    let home_row_default_profile = behavior_config
+        .morse
+        .default_profile
+        .with_quick_tap_timeout_ms(Some(0));
+    let home_row_shift_profile = shift_profile.with_quick_tap_timeout_ms(Some(0));
+
+    let home_row_morses = [
+        (HidKeyCode::D, ModifierCombination::LALT, home_row_default_profile),   // 0: D
+        (HidKeyCode::F, ModifierCombination::LSHIFT, home_row_shift_profile),   // 1: F
+        (HidKeyCode::G, ModifierCombination::LCTRL, home_row_default_profile),  // 2: G
+        (HidKeyCode::K, ModifierCombination::LALT, home_row_default_profile),   // 3: K
+        (HidKeyCode::J, ModifierCombination::RSHIFT, home_row_shift_profile),   // 4: J
+        (HidKeyCode::H, ModifierCombination::RCTRL, home_row_default_profile),  // 5: H
+    ];
+    for (key, modifier, profile) in home_row_morses {
+        let _ = behavior_config
+            .morse
+            .morses
+            .push(home_row_morse(key, modifier, profile));
+    }
+
     behavior_config.one_shot.timeout = embassy_time::Duration::from_millis(1000);
     behavior_config.tap.tap_interval = 20;
     behavior_config.tap.tap_capslock_interval = 20;
@@ -92,19 +127,19 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
         ))),
         // 6. F + Semicolon -> Ctrl+S (Save)
         Some(Combo::new(ComboConfig::new(
-            [k!(F), k!(Semicolon)],
+            [morse!(1), k!(Semicolon)],
             wm!(S, ModifierCombination::LCTRL),
             None,
         ))),
         // 7. F + J -> Win+Space (Language Switch)
         Some(Combo::new(ComboConfig::new(
-            [k!(F), k!(J)],
+            [morse!(1), morse!(4)],
             wm!(Space, ModifierCombination::LGUI),
             None,
         ))),
         // 8. Delete + H -> KpMinus
         Some(Combo::new(ComboConfig::new(
-            [k!(Delete), k!(H)],
+            [k!(Delete), morse!(5)],
             k!(KpMinus),
             None,
         ))),
@@ -144,7 +179,7 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
         ))),
         // 16. Delete + J -> KpEqual
         Some(Combo::new(ComboConfig::new(
-            [k!(Delete), k!(J)],
+            [k!(Delete), morse!(4)],
             k!(KpEqual),
             None,
         ))),
@@ -156,7 +191,7 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
 
     behavior_config.combo = CombosConfig {
         combos,
-        timeout: embassy_time::Duration::from_millis(60),
+        timeout: embassy_time::Duration::from_millis(85),
         prior_idle_time: Some(embassy_time::Duration::from_millis(125)),
         switch_to_default_layer: true,
     };

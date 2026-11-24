@@ -65,7 +65,7 @@ quick_tap_timeout = "180ms"
 timeout = "1000ms"
 
 [behavior.combo]
-timeout = "60ms"
+timeout = "85ms"
 prior_idle_time = "125ms"
 switch_to_default_layer = true
 combos = [
