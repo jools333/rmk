@@ -28,12 +28,12 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     // 1. Morse / Hold-Tap тайминги и поведение (из layout.vil / Vial settings):
     // Setting 2: Combo timeout = 85ms
     // Setting 6: OneShot timeout = 1000ms
-    // Setting 7: Hold timeout (Morse timeout / tapping-term) = 200ms
+    // Setting 7: Hold timeout (Morse timeout / tapping-term) = 180ms
     // Setting 18: Tap interval = 20ms
     // Setting 19: Tap capslock interval = 20ms
     // Setting 22: PermissiveHold = true
     // Setting 23: HoldOnOtherKeyPress = false
-    // Setting 25: Quick-tap / gap timeout = 180ms
+    // Setting 25: Quick-tap / gap timeout = 170ms
     // Setting 26: UnilateralTap = true
     // Setting 27: Prior idle time = 125ms (через enable_flow_tap + prior_idle_time)
     behavior_config.morse.enable_flow_tap = true;
@@ -41,20 +41,20 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     behavior_config.morse.default_profile = MorseProfile::new(
         Some(true), // unilateral_tap: true (setting 26)
         Some(MorseMode::PermissiveHold), // permissive_hold: true (setting 22)
-        Some(200u16), // hold timeout: 200ms (setting 7)
-        Some(180u16), // gap timeout: 180ms (setting 25)
+        Some(180u16), // hold timeout: 180ms (setting 7)
+        Some(170u16), // gap timeout: 170ms (setting 25)
     )
-    .with_quick_tap_timeout_ms(Some(180))
+    .with_quick_tap_timeout_ms(Some(170))
     .with_enable_flow_tap(Some(true));
 
-    // Profile 0: Fast hold-timeout for R (Sniper mode: 100ms vs default 200ms)
+    // Profile 0: Fast hold-timeout for R (Sniper mode: 100ms vs default 180ms)
     let sniper_profile = MorseProfile::new(
         Some(true),                      // unilateral_tap: true (setting 26)
         Some(MorseMode::PermissiveHold), // permissive_hold: true (setting 22)
         Some(100u16),                    // hold timeout: 100ms for fast sniper mode activation
-        Some(180u16),                    // gap timeout: 180ms (setting 25)
+        Some(170u16),                    // gap timeout: 170ms (setting 25)
     )
-    .with_quick_tap_timeout_ms(Some(180))
+    .with_quick_tap_timeout_ms(Some(170))
     .with_enable_flow_tap(Some(true));
 
     let _ = behavior_config.morse.profiles.push(sniper_profile);
@@ -63,10 +63,10 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     let shift_profile = MorseProfile::new(
         Some(true),                      // unilateral_tap: true — prevent same-hand false Shift rolls
         Some(MorseMode::PermissiveHold), // permissive_hold: true — only Shift when second key is nested or held >= 140ms
-        Some(140u16),                    // hold timeout: 140ms (faster than default 200ms)
-        Some(180u16),                    // gap timeout: 180ms
+        Some(140u16),                    // hold timeout: 140ms (faster than default 180ms)
+        Some(170u16),                    // gap timeout: 170ms
     )
-    .with_quick_tap_timeout_ms(Some(180))
+    .with_quick_tap_timeout_ms(Some(170))
     .with_enable_flow_tap(Some(false));
 
     let _ = behavior_config.morse.profiles.push(shift_profile);
@@ -78,6 +78,9 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
         .default_profile
         .with_quick_tap_timeout_ms(Some(0));
     let top_row_sniper_profile = sniper_profile.with_quick_tap_timeout_ms(Some(0));
+    let td0_profile = top_row_default_profile
+        .with_hold_timeout_ms(Some(150))
+        .with_gap_timeout_ms(Some(150));
 
     let top_row_morses = [
         Morse::new_from_vial(
@@ -85,8 +88,8 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
             Action::LayerOn(8),
             Action::No,
             Action::OneShotModifier(ModifierCombination::LCTRL),
-            top_row_default_profile,
-        ), // 0: TD(0) on thumb (3,3) — tap LAlt+F, hold MO(8), double-tap OSM(LCtrl)
+            td0_profile,
+        ), // 0: TD(0) on thumb (3,3) — tap LAlt+F, hold MO(8), double-tap OSM(LCtrl) (150ms)
         top_row_morse(
             HidKeyCode::R,
             Action::LayerOn(6),

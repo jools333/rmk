@@ -41,27 +41,36 @@ enable_flow_tap = true
 unilateral_tap = true
 permissive_hold = true
 prior_idle_time = "125ms"
-hold_timeout = "200ms"
-gap_timeout = "180ms"
-quick_tap_timeout = "180ms"
+hold_timeout = "180ms"
+gap_timeout = "170ms"
+quick_tap_timeout = "170ms"
 
 [behavior.morse.profiles.sniper]
 enable_flow_tap = true
 unilateral_tap = true
 permissive_hold = true
 hold_timeout = "100ms"
-gap_timeout = "180ms"
-quick_tap_timeout = "180ms"
+gap_timeout = "170ms"
+quick_tap_timeout = "170ms"
 
 [behavior.morse.profiles.z_shift]
 enable_flow_tap = false
 unilateral_tap = true
 permissive_hold = true
 hold_timeout = "140ms"
-gap_timeout = "180ms"
-quick_tap_timeout = "180ms"
+gap_timeout = "170ms"
+quick_tap_timeout = "170ms"
+
+[behavior.morse.profiles.td0]
+enable_flow_tap = true
+unilateral_tap = true
+permissive_hold = true
+hold_timeout = "150ms"
+gap_timeout = "150ms"
+quick_tap_timeout = "0ms"
 
 [[behavior.morse.morses]]
+profile = "td0"
 tap = "WM(F, LAlt)"
 hold = "MO(8)"
 double_tap = "OSM(LCtrl)"
