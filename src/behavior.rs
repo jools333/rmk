@@ -5,7 +5,7 @@ use rmk::types::constants::COMBO_MAX_NUM;
 use rmk::types::keycode::{HidKeyCode, KeyCode};
 use rmk::types::modifier::ModifierCombination;
 use rmk::types::morse::{Morse, MorseMode, MorseProfile};
-use rmk::{k, lt, macros, morse, wm};
+use rmk::{k, lt, ltp, macros, wm};
 
 fn top_row_morse(
     key: HidKeyCode,
@@ -26,7 +26,7 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     let mut behavior_config = BehaviorConfig::default();
 
     // 1. Morse / Hold-Tap тайминги и поведение (из layout.vil / Vial settings):
-    // Setting 2: Combo timeout = 60ms
+    // Setting 2: Combo timeout = 85ms
     // Setting 6: OneShot timeout = 1000ms
     // Setting 7: Hold timeout (Morse timeout / tapping-term) = 200ms
     // Setting 18: Tap interval = 20ms
@@ -80,12 +80,13 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
     let top_row_sniper_profile = sniper_profile.with_quick_tap_timeout_ms(Some(0));
 
     let top_row_morses = [
-        top_row_morse(
-            HidKeyCode::E,
-            Action::Key(KeyCode::Hid(HidKeyCode::E)),
-            ModifierCombination::LALT,
+        Morse::new_from_vial(
+            Action::KeyWithModifier(HidKeyCode::F, ModifierCombination::LALT),
+            Action::LayerOn(8),
+            Action::No,
+            Action::OneShotModifier(ModifierCombination::LCTRL),
             top_row_default_profile,
-        ), // 0: E (above D/LAlt)
+        ), // 0: TD(0) on thumb (3,3) — tap LAlt+F, hold MO(8), double-tap OSM(LCtrl)
         top_row_morse(
             HidKeyCode::R,
             Action::LayerOn(6),
@@ -135,13 +136,13 @@ pub fn get_default_behavior_config() -> BehaviorConfig {
         ))),
         // 2. E + I -> Win+3 (App 3)
         Some(Combo::new(ComboConfig::new(
-            [morse!(0), morse!(3)],
+            [k!(E), k!(I)],
             wm!(Kc3, ModifierCombination::LGUI),
             None,
         ))),
         // 3. ltp!(6, R, 0) + U -> Win+4 (App 4)
         Some(Combo::new(ComboConfig::new(
-            [morse!(1), morse!(4)],
+            [ltp!(6, R, 0), k!(U)],
             wm!(Kc4, ModifierCombination::RGUI),
             None,
         ))),

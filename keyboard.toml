@@ -61,6 +61,37 @@ hold_timeout = "140ms"
 gap_timeout = "180ms"
 quick_tap_timeout = "180ms"
 
+[[behavior.morse.morses]]
+tap = "WM(F, LAlt)"
+hold = "MO(8)"
+double_tap = "OSM(LCtrl)"
+
+[[behavior.morse.morses]]
+profile = "sniper"
+tap = "R"
+hold = "MO(6)"
+double_tap = "OSM(LShift)"
+
+[[behavior.morse.morses]]
+tap = "T"
+hold = "T"
+double_tap = "OSM(LCtrl)"
+
+[[behavior.morse.morses]]
+tap = "I"
+hold = "I"
+double_tap = "OSM(LAlt)"
+
+[[behavior.morse.morses]]
+tap = "U"
+hold = "U"
+double_tap = "OSM(RShift)"
+
+[[behavior.morse.morses]]
+tap = "Y"
+hold = "Y"
+double_tap = "OSM(RCtrl)"
+
 [behavior.one_shot]
 timeout = "1000ms"
 
